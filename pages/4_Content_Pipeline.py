@@ -10,6 +10,8 @@ from fcie.models import OPPORTUNITY_STATUSES
 from fcie.pipeline.opportunities import generate_opportunities
 from fcie.queries import opportunities_list, set_opportunity_status, themes_dataframe
 from fcie.ui.components import (
+    chip,
+    chips,
     STATUS_LABELS,
     empty_state,
     format_date,
@@ -25,42 +27,46 @@ sidebar_status()
 header("Content Pipeline", "Opportunities from New through to Approved. Nothing leaves this "
                           "system without a human decision.")
 
-# ── generation ──────────────────────────────────────────────────────────────
-with st.expander("⚙ Generate or regenerate briefs"):
-    themes = themes_dataframe()
-    theme_choices = themes["name"].tolist() if not themes.empty else []
-    selected = st.multiselect(
-        "Limit to specific themes (leave empty to use every promotable theme)",
-        theme_choices,
-    )
-    col1, col2, col3 = st.columns(3)
-    regenerate = col1.checkbox("Overwrite existing briefs", value=False,
-                              help="Approved and in-review briefs are never overwritten.")
-    heuristic = col2.checkbox("Force heuristic builder", value=False)
-    max_count = col3.number_input("Max briefs", 1, 30, 10)
+def generation_panel() -> None:
+    """Brief generation controls. Rendered last — it is an operator tool, and a
+    reader should meet the pipeline's contents before its machinery."""
+    with st.expander("⚙ Generate or regenerate briefs"):
+        themes = themes_dataframe()
+        theme_choices = themes["name"].tolist() if not themes.empty else []
+        selected = st.multiselect(
+            "Limit to specific themes (leave empty to use every promotable theme)",
+            theme_choices,
+        )
+        col1, col2, col3 = st.columns(3)
+        regenerate = col1.checkbox("Overwrite existing briefs", value=False,
+                                   help="Approved and in-review briefs are never overwritten.")
+        heuristic = col2.checkbox("Force heuristic builder", value=False)
+        max_count = col3.number_input("Max briefs", 1, 30, 10)
 
-    if st.button("Generate briefs", type="primary"):
-        with st.spinner("Building evidence-backed briefs…"):
-            report = generate_opportunities(
-                theme_names=selected or None,
-                max_opportunities=int(max_count),
-                force_regenerate=regenerate,
-                force_heuristic=heuristic,
-            )
-        st.success(f"{report.created} created, {report.updated} updated "
-                   f"(backend: {report.backend}).")
-        if report.skipped:
-            with st.expander(f"{len(report.skipped)} theme(s) skipped and why"):
-                for reason in report.skipped:
-                    st.caption(f"· {reason}")
-        if report.errors:
-            for error in report.errors:
-                st.error(error)
-        st.cache_data.clear()
-        st.rerun()
+        if st.button("Generate briefs", type="primary"):
+            with st.spinner("Building evidence-backed briefs…"):
+                report = generate_opportunities(
+                    theme_names=selected or None,
+                    max_opportunities=int(max_count),
+                    force_regenerate=regenerate,
+                    force_heuristic=heuristic,
+                )
+            st.success(f"{report.created} created, {report.updated} updated "
+                       f"(backend: {report.backend}).")
+            if report.skipped:
+                with st.expander(f"{len(report.skipped)} themes skipped, and why"):
+                    for reason in report.skipped:
+                        st.caption(f"· {reason}")
+            if report.errors:
+                for error in report.errors:
+                    st.error(error)
+            st.cache_data.clear()
+            st.rerun()
+
 
 opportunities = opportunities_list()
 if not opportunities:
+    generation_panel()
     empty_state(
         "No content opportunities yet.",
         "Run discovery from the Executive Dashboard, then press *Generate briefs* above.",
@@ -72,9 +78,20 @@ counts = {status: 0 for status in OPPORTUNITY_STATUSES}
 for opportunity in opportunities:
     counts[opportunity["status"]] = counts.get(opportunity["status"], 0) + 1
 
-cols = st.columns(len(OPPORTUNITY_STATUSES))
-for col, status in zip(cols, OPPORTUNITY_STATUSES):
-    col.metric(STATUS_LABELS[status], counts.get(status, 0))
+# Seven metric columns of mostly zeros is noise. Show the stages that actually
+# hold something, as chips, plus where the reader's attention is needed.
+active = [(s, counts.get(s, 0)) for s in OPPORTUNITY_STATUSES if counts.get(s, 0)]
+st.markdown(
+    f"<div class='fcie-lead'><b>{len(opportunities)}</b> "
+    f"{'opportunity' if len(opportunities) == 1 else 'opportunities'} in the pipeline. "
+    f"Nothing moves to approved without a human deciding.</div>",
+    unsafe_allow_html=True,
+)
+chips(*[
+    chip(STATUS_LABELS[status], str(count),
+         tone="good" if status == "approved" else "accent" if status == "review" else "")
+    for status, count in active
+])
 
 st.divider()
 
@@ -157,3 +174,7 @@ st.info(
 )
 st.caption(f"Selected: **{current['title']}** — {risk_badge(current['risk'])} risk, "
            f"built by {current['generation_method']}, created {format_date(current['created_at'])}.")
+
+st.divider()
+st.markdown("## Generate briefs")
+generation_panel()

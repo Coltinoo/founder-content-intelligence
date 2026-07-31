@@ -41,6 +41,19 @@ OPINION_MARKERS = (
 
 FUTURE_MARKERS = ("will ", "going to ", "expect ", "predict", "by 2026", "by 2027", "soon")
 
+# Words that carry no evidential weight. Without removing them, a sentence of
+# mostly connective tissue can "match" any passage, and a short factual sentence
+# is dominated by them.
+_AUDIT_STOPWORDS = {
+    "that", "this", "with", "from", "they", "them", "their", "there", "these",
+    "those", "have", "has", "had", "been", "being", "which", "when", "what",
+    "your", "you", "our", "and", "but", "for", "not", "are", "were", "was",
+    "into", "than", "then", "also", "just", "more", "most", "much", "only",
+    "over", "such", "some", "same", "still", "even", "here", "will", "would",
+    "could", "should", "about", "after", "before", "because", "while", "where",
+    "every", "each", "both", "many", "make", "makes", "made", "does", "doing",
+}
+
 FORMAT_LABELS = {
     "linkedin_post": "LinkedIn post",
     "short_form_video_outline": "Short-form video outline",
@@ -114,6 +127,7 @@ def audit_draft(draft_text: str, evidence_passages: list[dict]) -> dict:
     excluded from the denominator but reported.
     """
     corpus = " ".join(p.get("passage", "") for p in evidence_passages).lower()
+    corpus_tokens = {w for w in re.findall(r"[a-z']{4,}", corpus)}
     rows: list[dict] = []
     supported = partial = unsupported = 0
 
@@ -149,7 +163,7 @@ def audit_draft(draft_text: str, evidence_passages: list[dict]) -> dict:
             continue
 
         best_overlap, best_passage = 0.0, None
-        tokens = {w for w in re.findall(r"[a-z']{4,}", low)}
+        tokens = {w for w in re.findall(r"[a-z']{4,}", low)} - _AUDIT_STOPWORDS
         if not tokens:
             continue
         for passage in evidence_passages:
@@ -176,6 +190,25 @@ def audit_draft(draft_text: str, evidence_passages: list[dict]) -> dict:
                 "supporting_passage": best_passage["passage"],
                 "overlap": round(best_overlap, 2),
                 "problem": "Consistent with the evidence but not directly stated by it.",
+            })
+        elif tokens and len(tokens & corpus_tokens) / len(tokens) >= 0.75:
+            # Synthesis across passages. Matching sentence-to-passage alone
+            # rewards copying and punishes writing: a sentence that accurately
+            # combines two passages scores ~0.5 against each and lands in
+            # "unsupported", which is wrong — its substance *does* come from the
+            # evidence. Requiring 75% of its content words to exist somewhere in
+            # the corpus catches that without letting new claims through, since
+            # a genuinely novel assertion introduces vocabulary the corpus lacks.
+            partial += 1
+            rows.append({
+                "sentence": sentence, "status": "partially_supported",
+                "supporting_source_ids": sorted({
+                    p["source_id"] for p in evidence_passages
+                    if tokens & {w for w in re.findall(r"[a-z']{4,}", p.get("passage", "").lower())}
+                })[:3],
+                "supporting_passage": None,
+                "overlap": round(len(tokens & corpus_tokens) / len(tokens), 2),
+                "problem": "Synthesised from several passages rather than stated by one.",
             })
         else:
             unsupported += 1

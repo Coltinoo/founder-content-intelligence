@@ -282,6 +282,27 @@ with tabs[4]:
             d2.metric("Voice alignment", f"{draft['voice_score']:.0f}/100")
             d3.metric("Unsupported sentences", len(draft["unsupported_claims"]))
 
+            # A low score here is the system working, not failing. Say so, or a
+            # reader assumes the number is broken rather than the draft.
+            score = draft["evidence_score"]
+            if score >= 60:
+                st.success(
+                    f"{score:.0f}/100 — most factual sentences trace to a verbatim "
+                    "source passage. Still check the flagged items before publishing."
+                )
+            elif score >= 30:
+                st.warning(
+                    f"{score:.0f}/100 — a fair share of this draft is not directly "
+                    "backed by the evidence. Usually generic connective prose; edit or cut it."
+                )
+            else:
+                st.error(
+                    f"{score:.0f}/100 — most of this draft is **not** traceable to a source. "
+                    "That is the audit doing its job, not a bug: the generator wrote "
+                    "plausible-sounding filler, and every unbacked sentence is listed below. "
+                    "Rewrite around the evidence, or drop the piece."
+                )
+
             st.text_area("Draft text", draft["draft_text"], height=340,
                          key=f"draft_text_{draft['id']}")
 

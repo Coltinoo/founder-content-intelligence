@@ -848,6 +848,52 @@ class TestEvidenceRanking:
         assert points[0]["evidence_source_ids"] == [2]
 
 
+class TestDraftAuditFairness:
+    """The audit must measure whether a claim is evidenced — not whether it was
+    copied. Sentence-to-passage matching alone scored LLM-written drafts at 0.0
+    while heuristic drafts that quoted passages verbatim scored 45, which
+    inverted the actual quality ordering."""
+
+    EVIDENCE = [
+        {"source_id": 1, "url": "u1", "domain": "achrnews.com",
+         "passage": "Contractors reported that 38% of after-hours calls went unanswered."},
+        {"source_id": 2, "url": "u2", "domain": "cbtnews.com",
+         "passage": "Dealership managers said response time decided which shop won the job."},
+    ]
+
+    def test_synthesis_across_passages_is_not_unsupported(self):
+        from fcie.pipeline.drafts import audit_draft
+
+        # Draws on both passages; matches neither strongly on its own.
+        draft = ("Contractors reported unanswered after-hours calls while dealership "
+                 "managers said response time decided which shop won the job.")
+        audit = audit_draft(draft, self.EVIDENCE)
+        statuses = [r["status"] for r in audit["sentence_audit"]]
+        assert "unsupported" not in statuses, (
+            "a sentence whose substance comes from the evidence must not be unsupported"
+        )
+
+    def test_genuinely_new_claims_are_still_unsupported(self):
+        from fcie.pipeline.drafts import audit_draft
+
+        draft = ("Podium customers achieve a ninety percent conversion uplift within "
+                 "fourteen days of installing the platform nationwide.")
+        audit = audit_draft(draft, self.EVIDENCE)
+        assert any(r["status"] == "unsupported" for r in audit["sentence_audit"]), (
+            "novel vocabulary and claims must not slip through the corpus check"
+        )
+
+    def test_verbatim_quotes_still_score_highest(self):
+        from fcie.pipeline.drafts import audit_draft
+
+        audit = audit_draft(
+            "Contractors reported that 38% of after-hours calls went unanswered.",
+            self.EVIDENCE,
+        )
+        assert audit["sentence_audit"][0]["status"] == "supported"
+        assert audit["evidence_score"] == 100.0
+
+
 class TestDraftAttribution:
     """A verbatim source sentence must never be rendered as the author's own words."""
 

@@ -201,6 +201,58 @@ class TestNoApiKeyBehaviour:
         assert result.extraction_error
         load_config.cache_clear()
 
+    def test_quota_errors_are_not_retried(self):
+        """An empty OpenAI account will not refill between attempts."""
+        from fcie.ai.client import _is_permanent
+
+        quota = ("RateLimitError: Error code: 429 - {'error': {'message': 'You exceeded "
+                 "your current quota', 'code': 'insufficient_quota'}}")
+        assert _is_permanent(quota)
+        assert _is_permanent("AuthenticationError: Incorrect API key provided")
+        # Genuinely transient failures must still be retried.
+        assert not _is_permanent("APITimeoutError: Request timed out")
+        assert not _is_permanent("InternalServerError: 500")
+        assert not _is_permanent(None)
+
+    def test_repeated_permanent_failures_disable_the_backend(self):
+        """One doomed call per source is waste; the breaker stops after three."""
+        from fcie.ai.client import AIClient
+
+        client = AIClient(api_key="sk-test-not-real")
+        client._client = object()          # pretend the SDK initialised
+        assert client.available
+
+        quota = "RateLimitError: insufficient_quota — you exceeded your current quota"
+        for _ in range(3):
+            client._note_failure(quota)
+
+        assert not client.available, "backend must disable itself after repeated quota errors"
+        assert "quota" in client.setup_message.lower()
+        assert "heuristic" in client.setup_message.lower(), (
+            "the message must tell the operator what happened instead"
+        )
+        assert "platform.openai.com" in client.setup_message
+
+    def test_transient_failures_do_not_trip_the_breaker(self):
+        from fcie.ai.client import AIClient
+
+        client = AIClient(api_key="sk-test-not-real")
+        client._client = object()
+        for _ in range(10):
+            client._note_failure("APITimeoutError: Request timed out")
+        assert client.available, "transient errors must not disable the backend"
+
+    def test_a_success_resets_the_failure_counter(self):
+        from fcie.ai.client import AIClient
+
+        client = AIClient(api_key="sk-test-not-real")
+        client._client = object()
+        client._note_failure("RateLimitError: insufficient_quota")
+        client._note_failure("RateLimitError: insufficient_quota")
+        client._note_failure("APITimeoutError: transient")   # non-permanent resets
+        client._note_failure("RateLimitError: insufficient_quota")
+        assert client.available
+
     def test_ai_client_setup_message_is_actionable(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         from fcie.ai.client import AIClient

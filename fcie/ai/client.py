@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -240,11 +241,15 @@ def _diagnose(error: str) -> str:
     low = error.lower()
     if _is_rate_limited(low) and not _is_permanent(low):
         window = "per-day" if ("requests per day" in low or "rpd" in low) else "per-minute"
+        # Quote the account's real limit rather than guessing at a tier. Telling
+        # someone on tier 1 to "add credit" when they already have it is the same
+        # class of unhelpful as blaming their key for a rate limit.
+        limit = re.search(r"limit\s+(\d[\d,]*)", low)
+        ceiling = f" The account's current {window} ceiling is {limit.group(1)}." if limit else ""
         return (
-            f"OpenAI {window} rate limit reached — this is an allowance cap, not a "
-            f"problem with the key, and it resets on its own. To raise it, add credit "
-            f"at platform.openai.com/settings/organization/billing (free tier allows "
-            f"50 requests/day; tier 1 allows 10,000)."
+            f"OpenAI {window} rate limit reached — an allowance cap, not a problem with "
+            f"the key.{ceiling} It resets on its own; raise the ceiling by moving up a "
+            f"usage tier at platform.openai.com/settings/organization/limits."
         )
     if "insufficient_quota" in low or "exceeded your current quota" in low:
         return (

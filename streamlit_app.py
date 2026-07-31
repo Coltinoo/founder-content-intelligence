@@ -17,16 +17,20 @@ from fcie.queries import (
     top_signals,
 )
 from fcie.ui.components import (
+    card,
+    chip,
     empty_state,
     format_date,
     header,
-    method_tag,
     page_setup,
-    risk_badge,
+    risk_chip,
     run_pipeline_widget,
+    score_bar,
     sidebar_status,
+    signal_card,
     trend_badge,
 )
+from fcie.utils.format import count_label, humanize_label, relative_time, truncate_words
 
 page_setup("Executive Dashboard", "◆")
 init_db()
@@ -62,57 +66,51 @@ if counters["total_sources"] == 0:
 # ── counters ────────────────────────────────────────────────────────────────
 st.markdown("## Coverage")
 c1, c2, c3, c4, c5, c6 = st.columns(6)
-c1.metric("Sources", counters["total_sources"], f"+{counters['sources_24h']} in 24h")
+c1.metric("Sources", counters["total_sources"],
+          f"+{counters['sources_24h']} today" if counters["sources_24h"] else None)
 c2.metric("Domains", counters["distinct_domains"])
-c3.metric("Signals extracted", counters["extracted_signals"])
-c4.metric("Themes", counters["themes"], f"{counters['rising_themes']} rising")
+c3.metric("Signals", counters["extracted_signals"])
+c4.metric("Themes", counters["themes"],
+          f"{counters['rising_themes']} rising" if counters["rising_themes"] else None)
 c5.metric("Opportunities", counters["opportunities"])
-c6.metric("Drafts pending", counters["drafts_pending"])
+c6.metric("Drafts to review", counters["drafts_pending"])
 
-if counters["needs_review"] or counters["policy_skipped"]:
-    st.caption(
-        f"{counters['needs_review']} source(s) need review · "
-        f"{counters['policy_skipped']} skipped by crawl policy (robots.txt, paywall, or "
-        "excluded platform) — see the Source Library."
+notes = []
+if counters["needs_review"]:
+    notes.append(f"{count_label(counters['needs_review'], 'source')} need review")
+if counters["policy_skipped"]:
+    notes.append(
+        f"{counters['policy_skipped']} skipped by crawl policy (robots.txt, paywall, "
+        "or excluded platform)"
     )
-
 last_run = counters.get("last_run")
 if last_run:
-    st.caption(
-        f"Last run #{last_run['id']} ({last_run['trigger']}) at "
-        f"{format_date(last_run['started_at'])} — {last_run['stored']} stored, "
-        f"{last_run['duplicates']} duplicate(s) merged, {last_run['signals']} signal(s), "
-        f"{len(last_run['errors'])} error(s)."
+    notes.append(
+        f"last run {relative_time(last_run['started_at'])} — "
+        f"{last_run['stored']} stored, {last_run['duplicates']} duplicates merged"
     )
+if notes:
+    st.markdown(f"<div class='fcie-muted'>{' · '.join(notes)}</div>",
+                unsafe_allow_html=True)
 
 st.divider()
 
 # ── highest-ranking signals ─────────────────────────────────────────────────
-left, right = st.columns([1.35, 1])
+left, right = st.columns([1.45, 1], gap="large")
 
 with left:
     st.markdown("## Highest-ranking signals")
-    signals = top_signals(limit=8)
+    st.markdown(
+        "<div class='fcie-muted' style='margin:-.35rem 0 .7rem'>"
+        "Ranked by a transparent 100-point model. Every score breaks down on the "
+        "source's detail page.</div>",
+        unsafe_allow_html=True,
+    )
+    signals = top_signals(limit=6)
     if not signals:
         empty_state("No signals extracted yet. Run discovery to populate this view.")
     for signal in signals:
-        st.markdown(
-            f"**[{signal['title'][:110]}]({signal['url']})**  \n"
-            f"<span class='fcie-muted'>{signal['domain']} · {format_date(signal['published_at'])} · "
-            f"theme: {signal['theme'] or 'unassigned'}</span>",
-            unsafe_allow_html=True,
-        )
-        s1, s2, s3, s4 = st.columns([1, 1, 1, 2])
-        s1.markdown(f"**{signal['score']:.0f}**/100  \n<span class='fcie-muted'>opportunity</span>",
-                    unsafe_allow_html=True)
-        s2.markdown(f"{risk_badge(signal['risk'])}  \n<span class='fcie-muted'>risk</span>",
-                    unsafe_allow_html=True)
-        s3.markdown(f"{signal['evidence_strength']:.0f}/10  \n<span class='fcie-muted'>evidence</span>",
-                    unsafe_allow_html=True)
-        s4.markdown(method_tag(signal["extraction_method"]), unsafe_allow_html=True)
-        if signal["problem"]:
-            st.caption(f"Problem identified in source: {signal['problem'][:220]}")
-        st.markdown("<hr>", unsafe_allow_html=True)
+        signal_card(signal)
 
 with right:
     st.markdown("## Rising themes")
@@ -123,33 +121,37 @@ with right:
         rising = themes[themes["trend_status"].isin(["rising", "emerging"])]
         if rising.empty:
             rising = themes.sort_values("source_count", ascending=False).head(5)
-            st.caption("No theme has met the rising threshold — showing the highest-volume themes.")
-        for _, theme in rising.head(6).iterrows():
-            st.markdown(
-                f"**{theme['name']}** {trend_badge(theme['trend_status'])}  \n"
-                f"<span class='fcie-muted'>{int(theme['source_count'])} source(s) · "
-                f"{int(theme['domains'])} domain(s) · "
-                f"relevance {theme['avg_relevance']:.1f}/10 · "
-                f"evidence {theme['avg_evidence']:.1f}/10</span>",
-                unsafe_allow_html=True,
+            st.caption("No theme has met the rising threshold — showing highest-volume themes.")
+        for _, theme in rising.head(5).iterrows():
+            card(
+                title=theme["name"],
+                meta=(f"{count_label(int(theme['source_count']), 'source')} · "
+                      f"{count_label(int(theme['domains']), 'domain')}"),
+                chip_html=(
+                    chip(trend_badge(theme["trend_status"]))
+                    + chip("relevance", f"{theme['avg_relevance']:.1f}/10")
+                    + chip("evidence", f"{theme['avg_evidence']:.1f}/10")
+                ),
             )
-        st.caption("Full detail on the Trend Radar page.")
+        st.caption("Full detail on the Trend Radar page →")
 
-    st.markdown("## Top content opportunities")
+    st.markdown("## Top opportunities")
     opportunities = opportunities_list()
     if not opportunities:
         empty_state("No opportunities generated yet.")
-    for opportunity in opportunities[:5]:
-        st.markdown(
-            f"**{opportunity['title'][:120]}**  \n"
-            f"<span class='fcie-muted'>score {opportunity['score']:.0f} · "
-            f"confidence {opportunity['confidence']:.0f} · "
-            f"risk {opportunity['risk']:.0f} · {opportunity['source_count']} source(s) · "
-            f"{opportunity['status']}</span>",
-            unsafe_allow_html=True,
+    for opportunity in opportunities[:4]:
+        card(
+            title=truncate_words(opportunity["title"], 16),
+            meta=f"{count_label(opportunity['source_count'], 'source')} · "
+                 f"{humanize_label(opportunity['status'])}",
+            chip_html=(
+                score_bar(opportunity["score"], "opportunity")
+                + chip("confidence", f"{opportunity['confidence']:.0f}")
+                + risk_chip(opportunity["risk"])
+            ),
         )
     if opportunities:
-        st.caption("Open the Content Pipeline page to review and approve.")
+        st.caption("Review and approve on the Content Pipeline page →")
 
 st.divider()
 with st.expander("Recent pipeline runs"):

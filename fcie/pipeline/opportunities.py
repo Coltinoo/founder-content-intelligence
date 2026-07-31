@@ -24,6 +24,7 @@ from ..ai.taxonomy import THEMES, contains_phrase
 from ..config import load_config
 from ..db import session_scope
 from ..models import ContentOpportunity, ExtractedSignal, Source, Theme
+from ..utils.format import count_label, industry_phrase, truncate_words
 from ..utils.text import truncate
 from .scoring import compute_confidence, compute_opportunity_score, compute_risk_score
 
@@ -406,25 +407,26 @@ class HeuristicBriefBuilder:
 
     @staticmethod
     def _title(name: str, description: str, evidence: ThemeEvidence) -> str:
-        """Lead with the claim, then state the evidence base.
+        """A short, arguable claim — nothing else.
 
-        A topic label ("Missed after-hours leads") is not something a reader can
-        agree or disagree with. The theme description already *is* an arguable
-        statement, so it leads; the source and domain counts follow so the
-        strength of the claim is visible in the title itself.
+        This used to append the industry list and the source/domain counts,
+        producing titles like "Framing AI as absorbing tasks and workflows
+        rather than eliminating roles in b2b saas and local business (general)
+        and home services — 8 public source(s) across 5 domain(s)". Unreadable,
+        and the counts belong on a metadata line where they can be *scanned*
+        rather than read. The title's only job is to state the argument.
         """
         claim = (description or name).strip().rstrip(".")
-        if claim and claim[0].isupper() and not claim.startswith(("AI ", "B2B ")):
-            claim = claim[0].upper() + claim[1:]
+        if not claim:
+            return name
 
-        industries = evidence.dominant_industries()
-        scope = f" in {' and '.join(i.lower() for i in industries)}" if industries else ""
+        # Keep it to one clause: the first sentence, and no trailing subordinate
+        # clause that turns a headline into a paragraph.
+        claim = claim.split(". ")[0].strip().rstrip(".")
+        if len(claim.split()) > 14:
+            claim = truncate_words(claim, 14)
 
-        sources = len(evidence.sources)
-        domains = len(evidence.distinct_domains)
-        return (
-            f"{claim}{scope} — {sources} public source(s) across {domains} domain(s)"
-        )
+        return claim[0].upper() + claim[1:] if claim else name
 
     @staticmethod
     def _core_insight(evidence: ThemeEvidence, description: str,
@@ -432,13 +434,15 @@ class HeuristicBriefBuilder:
         parts = [description.rstrip(".") + "." if description else ""]
 
         scope = ""
-        if industries:
-            scope = f", spanning {' and '.join(i.lower() for i in industries[:3])}"
+        phrase = industry_phrase(industries, limit=3)
+        if phrase:
+            scope = f", spanning {phrase}"
         independent = [s for s in evidence.sources if not s.get("is_promotional")]
         parts.append(
-            f"Across {len(evidence.sources)} public source(s) from {len(domains)} distinct "
-            f"domain(s){scope}, {len(evidence.passages)} verbatim passage(s) touch on this "
-            f"pattern. {len(independent)} of those source(s) are independent of any vendor."
+            f"Across {count_label(len(evidence.sources), 'public source')} from "
+            f"{count_label(len(domains), 'distinct domain')}{scope}, "
+            f"{count_label(len(evidence.passages), 'verbatim passage')} touch on this "
+            f"pattern — {len(independent)} of them independent of any vendor."
         )
         if evidence.problems:
             parts.append(
@@ -456,7 +460,7 @@ class HeuristicBriefBuilder:
         growth = theme.get("growth_rate", 0.0)
 
         line = (
-            f"Trend status is **{status}**: {current} source(s) in the current period "
+            f"Trend status is **{status}**: {count_label(current, 'source')} in the current period "
             f"against {previous} in the previous period"
         )
         line += f" ({growth:+.0%} change)." if previous else "."
@@ -487,7 +491,7 @@ class HeuristicBriefBuilder:
         first_party = [s for s in evidence.sources if s["domain"] == "podium.com"]
         if first_party:
             text += (
-                f" {len(first_party)} of the supporting source(s) are Podium's own public pages, "
+                f" {count_label(len(first_party), 'supporting source')} are Podium's own public pages, "
                 "which show positioning rather than independent market evidence."
             )
         return text
@@ -519,7 +523,7 @@ class HeuristicBriefBuilder:
             f"[Inference — this is the argument, not a source finding] {description} "
             f"The evidence collected here suggests the constraint is operational rather than "
             f"technological: the pattern shows up across {len(evidence.distinct_domains)} independent "
-            f"domain(s) and {len(evidence.sources)} source(s), which points to a structural gap in "
+            f"independent domains and {count_label(len(evidence.sources), 'source')}, pointing to a structural gap in "
             f"how local businesses handle demand rather than an isolated tooling failure. "
             f"A founder writing on this should argue the operational case and let the cited "
             f"sources carry the factual load."
@@ -561,8 +565,8 @@ class HeuristicBriefBuilder:
         if evidence.problems:
             return truncate(evidence.problems[0]["text"], 190)
 
-        return (f"{name}: a pattern visible across {len(evidence.sources)} public source(s) "
-                f"from {len(evidence.distinct_domains)} domain(s).")
+        return (f"{name}: a pattern visible across {count_label(len(evidence.sources), 'public source')} "
+                f"from {count_label(len(evidence.distinct_domains), 'domain')}.")
 
     @staticmethod
     def _usable_supports(supports: str | None) -> str | None:
@@ -643,14 +647,14 @@ class HeuristicBriefBuilder:
                          "businesses are missing revenue.",
             "response": (
                 f"Fair. {len([s for s in evidence.sources if s['is_promotional']])} of "
-                f"{len(evidence.sources)} supporting source(s) are vendor marketing and are "
+                f"{count_label(len(evidence.sources), 'supporting source')} are vendor marketing and are "
                 "flagged as such in the source library. The argument should stand on the "
                 "non-vendor sources or be narrowed."
             ),
         }]
         if len(domains) < 3:
             objections.append({
-                "objection": f"Only {len(domains)} distinct domain(s) support this. That is thin.",
+                "objection": f"Only {count_label(len(domains), 'distinct domain')} support this. That is thin.",
                 "response": "Correct — this brief should be treated as a hypothesis to test with "
                             "more sources or first-party data, not a settled finding.",
             })
@@ -714,7 +718,7 @@ class HeuristicBriefBuilder:
         promotional = [s for s in evidence.sources if s["is_promotional"]]
         if promotional:
             items.append({
-                "item": f"Decide whether the {len(promotional)} vendor-marketing source(s) should be "
+                "item": f"Decide whether the {count_label(len(promotional), 'vendor-marketing source')} should be "
                         "cited publicly at all.",
                 "why": "Citing marketing copy as market evidence is the fastest way to lose an argument.",
                 "done": False,
@@ -735,12 +739,12 @@ class HeuristicBriefBuilder:
             )
         if len(evidence.passages) < 3:
             return (
-                f"Thin evidence: only {len(evidence.passages)} verbatim passage(s) survived the "
+                f"Thin evidence: only {count_label(len(evidence.passages), 'verbatim passage')} survived the "
                 "verbatim check. The argument needs more sourcing before publication."
             )
         return (
-            f"Moderate evidence base: {len(evidence.passages)} verbatim passage(s) from "
-            f"{len(domains)} distinct domain(s) across {len(evidence.sources)} source(s). "
+            f"Moderate evidence base: {count_label(len(evidence.passages), 'verbatim passage')} from "
+            f"{count_label(len(domains), 'distinct domain')} across {count_label(len(evidence.sources), 'source')}. "
             "Strong enough to argue from; every number still needs primary verification."
         )
 
@@ -898,7 +902,7 @@ def generate_opportunities(
             if theme["status"] not in PROMOTABLE_STATUSES:
                 reason = (
                     f"{theme['name']}: status '{theme['status']}' — not promoted "
-                    f"({theme['count']} source(s), {theme['domains']} domain(s))."
+                    f"({count_label(theme['count'], 'source')}, {count_label(theme['domains'], 'domain')})."
                 )
                 if _retire_stale_opportunity(theme["name"], reason):
                     reason += " Existing brief archived as stale."
@@ -1022,9 +1026,9 @@ def _score_brief(evidence: ThemeEvidence, brief: dict):
             "business_impact": avg("business_impact"),
         },
         notes=[
-            f"Averaged across {len(sources)} supporting source(s).",
-            f"{len(evidence.distinct_domains)} distinct domain(s); "
-            f"{len(evidence.passages)} verbatim passage(s).",
+            f"Averaged across {count_label(len(sources), 'supporting source')}.",
+            f"{count_label(len(evidence.distinct_domains), 'distinct domain')}; "
+            f"{count_label(len(evidence.passages), 'verbatim passage')}.",
         ],
     )
 
@@ -1032,17 +1036,17 @@ def _score_brief(evidence: ThemeEvidence, brief: dict):
     familiar = [s for s in sources if s["is_familiar"]]
     detected: dict[str, str] = {}
     if len(evidence.distinct_domains) < 2:
-        detected["weak_sourcing"] = f"Only {len(evidence.distinct_domains)} distinct domain(s)."
+        detected["weak_sourcing"] = f"Only {count_label(len(evidence.distinct_domains), 'distinct domain')}."
     elif len(promotional) > len(sources) / 2:
         detected["weak_sourcing"] = (
             f"{len(promotional)} of {len(sources)} sources are vendor marketing."
         )
     if evidence.numbers:
-        detected["unverified_numbers"] = f"{len(evidence.numbers)} figure(s) require verification."
+        detected["unverified_numbers"] = f"{count_label(len(evidence.numbers), 'figure')} require verification."
     if promotional:
-        detected["promotional_source"] = f"{len(promotional)} vendor-marketing source(s) in the cluster."
+        detected["promotional_source"] = f"{count_label(len(promotional), 'vendor-marketing source')} in the cluster."
     if len(familiar) >= max(2, len(sources) // 2):
-        detected["overused_narrative"] = f"{len(familiar)} source(s) restate a familiar narrative."
+        detected["overused_narrative"] = f"{count_label(len(familiar), 'source')} restate a familiar narrative."
     if not evidence.has_dated_sources:
         detected["missing_publication_date"] = "No supporting source carries a publication date."
     competitor_mentions = [
@@ -1050,12 +1054,12 @@ def _score_brief(evidence: ThemeEvidence, brief: dict):
     ]
     if competitor_mentions:
         detected["competitor_claims"] = (
-            f"{len(competitor_mentions)} source(s) are third-party vendor content that may "
+            f"{count_label(len(competitor_mentions), 'source')} are third-party vendor content that may "
             "make competitive claims."
         )
     if len(brief.get("supporting_points", [])) < 3:
         detected["no_original_insight"] = (
-            f"Only {len(brief.get('supporting_points', []))} evidenced supporting point(s)."
+            f"Only {count_label(len(brief.get('supporting_points', [])), 'evidenced supporting point')}."
         )
 
     risk = compute_risk_score(detected)
@@ -1135,7 +1139,7 @@ def _voice_guide_text() -> str:
     if not guide.get("approved_example_count"):
         return ""
     lines = [
-        f"Derived from {guide['approved_example_count']} approved public example(s).",
+        f"Derived from {count_label(guide['approved_example_count'], 'approved public example')}.",
         f"Tone: {guide.get('tone', 'not established')}",
         f"Median sentence length: {guide.get('median_sentence_words', 'n/a')} words",
         f"Median paragraph length: {guide.get('median_paragraph_sentences', 'n/a')} sentences",

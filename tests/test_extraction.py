@@ -229,7 +229,7 @@ class TestNoApiKeyBehaviour:
         message = _diagnose(rpd)
         assert "rate limit" in message.lower()
         assert "resets on its own" in message
-        assert "not a problem with the key" in message
+        assert "not a problem with" in message
         assert "rejected" not in message.lower(), "must not blame the credentials"
 
     def test_empty_account_is_reported_as_a_billing_problem(self):

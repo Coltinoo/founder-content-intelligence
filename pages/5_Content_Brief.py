@@ -16,6 +16,8 @@ from fcie.queries import (
 )
 from fcie.ui.components import (
     STATUS_LABELS,
+    chip,
+    chips,
     empty_state,
     evidence_block,
     format_date,
@@ -23,10 +25,13 @@ from fcie.ui.components import (
     inference_block,
     page_setup,
     risk_badge,
+    risk_chip,
+    score_bar,
     score_breakdown_table,
     sidebar_status,
     trend_badge,
 )
+from fcie.utils.format import count_label, humanize_label, relative_time
 
 page_setup("Content Brief", "📝")
 init_db()
@@ -60,20 +65,38 @@ drafts = detail["drafts"]
 
 # ── header ──────────────────────────────────────────────────────────────────
 st.markdown(f"# {opportunity['title']}")
-meta = [f"Status: **{STATUS_LABELS.get(opportunity['status'], opportunity['status'])}**"]
-if theme:
-    meta.append(f"Theme: **{theme['name']}** {trend_badge(theme['trend_status'])}")
-meta.append(f"Built by: `{opportunity['generation_method']}`")
-meta.append(f"Created {format_date(opportunity['created_at'])}")
-st.markdown(" · ".join(meta))
 
-m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("Opportunity score", f"{opportunity['opportunity_score']:.0f}/100")
-m2.metric("Confidence", f"{opportunity['confidence_score']:.0f}/100")
-m3.metric("Risk", f"{opportunity['risk_score']:.0f}/100")
-m4.metric("Sources", len(sources))
-m5.metric("Verbatim passages", len(opportunity["evidence_passages"]))
-st.markdown(f"Risk band: {risk_badge(opportunity['risk_score'])}")
+meta_chips = [chip("status", humanize_label(opportunity["status"]), tone="accent")]
+if theme:
+    meta_chips.append(chip("theme", theme["name"]))
+    meta_chips.append(chip(trend_badge(theme["trend_status"])))
+meta_chips.append(chip("built by", opportunity["generation_method"]))
+meta_chips.append(chip("created", relative_time(opportunity["created_at"])))
+chips(*meta_chips)
+
+st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+s1, s2, s3 = st.columns(3)
+with s1:
+    st.markdown(score_bar(opportunity["opportunity_score"], "opportunity"),
+                unsafe_allow_html=True)
+    st.caption("How attractive this is to write")
+with s2:
+    conf = opportunity["confidence_score"]
+    st.markdown(score_bar(conf, "confidence",
+                          tone="good" if conf >= 70 else "warn" if conf >= 45 else "bad"),
+                unsafe_allow_html=True)
+    st.caption("How well-supported the evidence is")
+with s3:
+    st.markdown(score_bar(opportunity["risk_score"], "risk",
+                          tone="bad" if opportunity["risk_score"] > 49 else "warn"),
+                unsafe_allow_html=True)
+    st.caption("Publication risk — scored separately, on purpose")
+
+chips(
+    chip("sources", str(len(sources))),
+    chip("verbatim passages", str(len(opportunity["evidence_passages"]))),
+    chip("evidenced points", str(len(opportunity["supporting_points"]))),
+)
 
 st.divider()
 
@@ -106,14 +129,11 @@ with tabs[0]:
     st.markdown("### Suggested opening hook")
     st.markdown(f"> {opportunity['hook'] or '_Not generated._'}")
 
-    st.markdown(f"### Supporting points ({len(opportunity['supporting_points'])})")
-    st.caption("Each point carries at least one source id and a verbatim evidence passage. "
-               "Points that could not be evidenced were dropped, not softened.")
+    st.markdown(f"### Supporting points")
+    st.caption("Every point carries a source id and a verbatim passage. Points that "
+               "could not be evidenced were dropped, not softened.")
     for index, point in enumerate(opportunity["supporting_points"], start=1):
-        ids = ", ".join(f"#{i}" for i in point.get("evidence_source_ids", []))
-        st.markdown(f"**{index}. {point.get('point', '')}**  \n"
-                    f"<span class='fcie-muted'>evidence: source {ids}</span>",
-                    unsafe_allow_html=True)
+        st.markdown(f"**{index}. {point.get('point', '')}**")
         evidence_block(
             point.get("evidence_passage", ""),
             (point.get("evidence_source_ids") or [None])[0],

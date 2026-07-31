@@ -12,13 +12,14 @@ from fcie.db import init_db
 from fcie.pipeline.extract import run_extraction
 from fcie.pipeline.ingest import ingest_manual_item
 from fcie.queries import filter_options, source_detail, sources_dataframe
+from fcie.utils.format import count_label, humanize_label, relative_time
 from fcie.ui.components import (
     empty_state,
     evidence_block,
     format_date,
     header,
     inference_block,
-    method_tag,
+    method_chip,
     page_setup,
     risk_badge,
     risk_breakdown_table,
@@ -113,7 +114,7 @@ if frame.empty:
                 "Clear the filters, or run discovery from the Executive Dashboard.")
     st.stop()
 
-st.caption(f"{len(frame)} source(s) shown.")
+st.caption(f"{count_label(len(frame), 'source')} shown.")
 
 display = frame[[
     "id", "title", "domain", "source_type", "status", "published_at", "theme",
@@ -143,7 +144,7 @@ st.dataframe(
 # ── errors and policy skips ─────────────────────────────────────────────────
 problems = frame[frame["status"].isin(["error", "needs_review"]) | frame["status"].str.startswith("skipped")]
 if not problems.empty:
-    with st.expander(f"⚠️ {len(problems)} source(s) with fetch errors, policy skips, or thin content"):
+    with st.expander(f"⚠️ {count_label(len(problems), 'source')} with fetch errors, policy skips, or thin content"):
         for _, row in problems.iterrows():
             st.markdown(
                 f"**#{row['id']} {row['title'][:90]}** — `{row['status']}`  \n"
@@ -197,7 +198,7 @@ with c2:
     if signal:
         st.metric("Opportunity score", f"{signal['opportunity_score']:.0f}/100")
         st.markdown(f"Risk: {risk_badge(signal['risk_score'])}")
-        st.markdown(method_tag(signal["extraction_method"]), unsafe_allow_html=True)
+        st.markdown(method_chip(signal["extraction_method"], signal.get("extraction_model")), unsafe_allow_html=True)
         st.caption(f"Model: {signal['extraction_model']}")
     if st.button("↻ Reprocess this source"):
         with st.spinner("Re-running extraction…"):

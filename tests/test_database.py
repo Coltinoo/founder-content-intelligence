@@ -901,6 +901,58 @@ class TestDraftAttribution:
         assert result.cited_source_ids == [3]
 
 
+class TestTopSignalsPresentation:
+    """The front page must show a view of the market, not one publisher's output."""
+
+    def _seed(self, temp_db):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        with temp_db.session_scope() as session:
+            # Five near-identical job ads from one board, plus two other outlets.
+            spec = ([("job-boards.greenhouse.io", f"AI Success Manager {i}", 9.0, 90 - i)
+                     for i in range(5)]
+                    + [("techcrunch.com", "Voice AI startup raises funding", 8.0, 80),
+                       ("achrnews.com", "Contractors report missed after-hours calls", 8.0, 75)])
+            # Plus an irrelevant but recent, well-written article.
+            spec.append(("hvacinsider.com", "New Model IV Indoor Ventilator", 1.0, 70))
+            for index, (domain, title, relevance, score) in enumerate(spec):
+                source = Source(source_type="rss", source_url=f"https://{domain}/{index}",
+                                canonical_url=f"https://{domain}/{index}",
+                                source_domain=domain, title=title, published_at=now,
+                                discovered_at=now, cleaned_text="body", status="extracted")
+                session.add(source)
+                session.flush()
+                session.add(ExtractedSignal(
+                    source_id=source.id, podium_relevance=relevance,
+                    opportunity_score=score, evidence_strength=6.0,
+                    extraction_method="llm", extracted_at=now,
+                ))
+
+    def test_one_publisher_cannot_own_the_list(self, temp_db):
+        from fcie.queries import top_signals
+
+        self._seed(temp_db)
+        signals = top_signals(limit=6)
+        boards = [s for s in signals if s["domain"] == "job-boards.greenhouse.io"]
+        assert len(boards) <= 2, "a single job board must not flood the front page"
+        assert len({s["domain"] for s in signals}) >= 3, "the list should span publishers"
+
+    def test_irrelevant_sources_are_gated_out(self, temp_db):
+        from fcie.queries import top_signals
+
+        self._seed(temp_db)
+        titles = [s["title"] for s in top_signals(limit=6)]
+        assert not any("Ventilator" in t for t in titles), (
+            "a recent, well-written, irrelevant article must not rank as a top signal"
+        )
+
+    def test_falls_back_rather_than_showing_nothing(self, temp_db):
+        from fcie.queries import top_signals
+
+        self._seed(temp_db)
+        # An impossible bar must still return something rather than an empty panel.
+        assert top_signals(limit=5, min_podium_relevance=99.0)
+
+
 class TestStaleBriefRetirement:
     """A brief whose evidence has weakened must not keep ranking on stale numbers."""
 

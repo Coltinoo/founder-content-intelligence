@@ -266,14 +266,74 @@ def source_detail(source_id: int) -> dict | None:
         }
 
 
-def top_signals(limit: int = 10) -> list[dict]:
+def _diversify_by_domain(rows, limit: int, per_domain: int = 2):
+    """Keep score order, but cap how many entries one publisher contributes.
+
+    Deliberately returns a *shorter* list rather than backfilling with the
+    publisher that was just capped: six slots filled by one job board is a worse
+    answer than four entries spanning four outlets. Only if the cap leaves the
+    list nearly empty does it relax, so the panel is never blank.
+    """
+    def take(cap: int):
+        chosen, seen = [], {}
+        for source, signal in rows:
+            domain = source.source_domain or ""
+            if seen.get(domain, 0) >= cap:
+                continue
+            seen[domain] = seen.get(domain, 0) + 1
+            chosen.append((source, signal))
+            if len(chosen) >= limit:
+                break
+        return chosen
+
+    kept = take(per_domain)
+    if len(kept) >= min(3, limit):
+        return kept
+    # Too thin to be useful — relax the cap rather than show almost nothing.
+    return take(limit) or list(rows)[:limit]
+
+
+def top_signals(limit: int = 10, min_podium_relevance: float = 4.0) -> list[dict]:
+    """Highest-scoring sources that are actually *about* this market.
+
+    A recent, well-written article scores respectably on freshness, novelty and
+    evidence even when it has nothing to do with local-business AI — which is
+    how "New Model IV Indoor Ventilator Offers Compact Outdoor Air Solution"
+    reached the front page. Relevance is a gate here, not just a weight: if a
+    source would not plausibly inform founder content, it does not belong on a
+    list headed "highest-ranking signals", whatever its composite score.
+    """
     with session_scope() as session:
         rows = session.execute(
             select(Source, ExtractedSignal)
             .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
+            .where(ExtractedSignal.podium_relevance >= min_podium_relevance)
             .order_by(ExtractedSignal.opportunity_score.desc())
             .limit(limit)
         ).all()
+        if not rows:
+            # Never show an empty panel just because the bar is high — fall back,
+            # and the caller can say the bar was relaxed.
+            rows = session.execute(
+                select(Source, ExtractedSignal)
+                .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
+                .order_by(ExtractedSignal.opportunity_score.desc())
+                .limit(limit)
+            ).all()
+        else:
+            # Over-fetch, then thin by publisher below.
+            rows = session.execute(
+                select(Source, ExtractedSignal)
+                .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
+                .where(ExtractedSignal.podium_relevance >= min_podium_relevance)
+                .order_by(ExtractedSignal.opportunity_score.desc())
+                .limit(limit * 6)
+            ).all()
+
+    # One publisher must not own the list. Podium's job board alone produced four
+    # near-identical "AI Customer Success Manager" postings in the top six —
+    # individually relevant, collectively useless as a view of the market.
+    rows = _diversify_by_domain(rows, limit)
     return [
         {
             "source_id": s.id, "title": s.title or "(untitled)", "url": s.canonical_url,

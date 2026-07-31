@@ -9,6 +9,7 @@ we keep the feed summary as a fallback when the article body is unavailable.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import feedparser
@@ -69,15 +70,23 @@ class RSSConnector(BaseConnector):
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.cfg.discovery.lookback_days)
         per_feed = self.cfg.discovery.rss_items_per_feed
 
-        for feed in self.feeds:
+        # Feeds live on ~30 different hosts, so fetching them concurrently is
+        # polite (the per-domain limiter still applies) and turns a couple of
+        # minutes of serial waiting into a few seconds. Bodies are gathered in
+        # parallel; parsing and item assembly stay sequential and deterministic.
+        feeds = [f for f in self.feeds if f.get("url")]
+
+        def _fetch(feed: dict) -> tuple[dict, bytes | None, str | None]:
+            body, error = self.fetcher.fetch_feed(feed["url"])
+            return feed, body, error
+
+        with ThreadPoolExecutor(max_workers=min(10, max(len(feeds), 1)),
+                                thread_name_prefix="rss") as pool:
+            fetched = list(pool.map(_fetch, feeds))
+
+        for feed, body, error in fetched:
             url = feed.get("url")
             feed_name = feed.get("name", url)
-            if not url:
-                continue
-
-            # Fetch the bytes ourselves so the request is bounded by our timeout,
-            # rate limiter and user agent. feedparser's own HTTP has no timeout.
-            body, error = self.fetcher.fetch_feed(url)
             result.requests_made += 1
             if error:
                 result.errors.append(f"{feed_name}: {error}")

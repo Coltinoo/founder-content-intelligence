@@ -11,8 +11,8 @@ constraints below. Compliance is enforced in code (`fcie/utils/http.py`,
 | Rule | Where | Behaviour |
 |---|---|---|
 | `robots.txt` respected | `RobotsCache` | fetched once per host and cached; a disallow is fatal for that URL and stored as `status='skipped_robots'` with the reason |
-| `Crawl-delay` honoured | `RobotsCache.crawl_delay` | overrides our configured delay whenever it is larger |
-| Per-domain rate limit | `RateLimiter` | 2.0s default between requests to the same host, thread-safe |
+| `Crawl-delay` honoured | `RobotsCache.crawl_delay` | overrides our configured delay whenever it is larger. Extreme values are honoured by **deferral, not by queueing**: searchengineland.com declares `Crawl-delay: 600` (ten minutes per page), so items whose polite slot is more than 30s away are deferred to a future run — or represented by the publisher's own RSS summary (`summary_only`) — instead of stalling the pipeline for hours. The delay is never shortened or bypassed. |
+| Per-domain rate limit | `RateLimiter` | 1.0s default between requests to the same host (robots `Crawl-delay` overrides when larger). Thread-safe reservation scheme: fetches run concurrently across *unrelated* domains, while each individual host never sees more than one request per delay window. Politeness is per-host pressure, not total wall-clock slowness. |
 | Identified user agent | `PoliteFetcher` | `FounderContentIntelligenceEngine/0.1 (independent candidate project)` — descriptive and contactable |
 | Allowlisted crawling | `is_allowed()` | first-party crawling touches only hosts in `allowed_domains`; checked before every request |
 | Blocklist wins | `is_allowed()` | blocklist is evaluated *before* the allowlist, so a mistake in the allowlist cannot expose a blocked platform |

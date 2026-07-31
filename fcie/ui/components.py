@@ -95,6 +95,11 @@ def sidebar_status() -> None:
         st.caption(
             "Nothing is published automatically. Every draft requires human approval."
         )
+        st.caption(
+            "Work sample for [Founder's Associate, Office of the CEO]"
+            "(https://job-boards.greenhouse.io/podium81/jobs/7967715) — "
+            "role mapping in `docs/ROLE_MAPPING.md`."
+        )
 
 
 def risk_badge(band_or_score) -> str:
@@ -203,8 +208,17 @@ def run_pipeline_widget(key_prefix: str = "run") -> None:
     with st.expander("▶︎ Run discovery", expanded=False):
         st.caption(
             "Fetches public sources, extracts structured signals, recomputes themes and "
-            "regenerates opportunity briefs. Crawling respects robots.txt and is rate-limited."
+            "regenerates opportunity briefs. Crawling respects robots.txt and is rate-limited "
+            "per domain; unrelated hosts are fetched concurrently."
         )
+        mode = st.radio(
+            "Run size",
+            ["Quick demo (~25 sources, ≈2 min)", "Standard run"],
+            horizontal=True,
+            key=f"{key_prefix}_mode",
+        )
+        quick = mode.startswith("Quick")
+
         col1, col2 = st.columns(2)
         with col1:
             podium = st.checkbox("Podium public pages", value=True, key=f"{key_prefix}_podium")
@@ -218,10 +232,13 @@ def run_pipeline_widget(key_prefix: str = "run") -> None:
             )
             youtube = st.checkbox("YouTube", value=True, key=f"{key_prefix}_yt")
 
-        max_sources = st.slider(
-            "Max new sources this run", 10, 200, cfg.crawl.max_sources_per_run, step=10,
-            key=f"{key_prefix}_max",
-        )
+        if quick:
+            max_sources = 25
+        else:
+            max_sources = st.slider(
+                "Max new sources this run", 10, 200, cfg.crawl.max_sources_per_run, step=10,
+                key=f"{key_prefix}_max",
+            )
         heuristic = st.checkbox(
             "Force heuristic analyser (skip the LLM)",
             value=not cfg.credentials.has_openai,

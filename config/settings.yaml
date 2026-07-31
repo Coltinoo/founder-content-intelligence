@@ -2,7 +2,10 @@
 # Anything here can be overridden by the matching FCIE_* environment variable.
 
 crawl:
-  delay_seconds: 2.0          # per-domain politeness delay
+  # Per-domain politeness delay. 1s is standard crawler etiquette; a site's own
+  # robots.txt Crawl-delay always overrides this when it is larger. Unrelated
+  # domains are fetched concurrently, so this bounds per-host pressure only.
+  delay_seconds: 1.0
   request_timeout: 25
   respect_robots: true
   max_sources_per_run: 60

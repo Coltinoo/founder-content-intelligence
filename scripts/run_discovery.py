@@ -23,6 +23,8 @@ from fcie.db import describe_backend, init_db  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the FCIE discovery pipeline.")
     parser.add_argument("--max-sources", type=int, default=None)
+    parser.add_argument("--quick", action="store_true",
+                        help="Demo-sized run: caps new sources at 25 (~2 minutes).")
     parser.add_argument("--no-podium", action="store_true")
     parser.add_argument("--no-rss", action="store_true")
     parser.add_argument("--no-search", action="store_true")
@@ -45,6 +47,9 @@ def main() -> int:
         format="%(asctime)s  %(levelname)-7s %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    if args.quick and args.max_sources is None:
+        args.max_sources = 25
 
     cfg = load_config()
     init_db()

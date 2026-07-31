@@ -130,7 +130,7 @@ silently discarding the run. Add repository secrets under
 - [ ] `.env` is git-ignored and no key is committed (`git log -S "sk-"` to be sure)
 - [ ] `FCIE_DATABASE_URL` points at Supabase, not SQLite
 - [ ] `python scripts/init_db.py` has run against the target database
-- [ ] `python -m pytest tests` passes (205 tests)
+- [ ] `python -m pytest tests` passes (211 tests)
 - [ ] `python scripts/verify_feeds.py` — feeds still return entries
 - [ ] `FCIE_RESPECT_ROBOTS` is **not** set to 0
 - [ ] `FCIE_USER_AGENT` identifies you and is contactable

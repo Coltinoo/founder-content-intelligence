@@ -1,152 +1,165 @@
-# How this maps to the Founder's Associate, Office of the CEO role
+# How this maps to the role
+
+**Founder's Associate, Office of the CEO** — [job posting](https://job-boards.greenhouse.io/podium81/jobs/7967715)
 
 *Independent candidate project. Not affiliated with, authorised by, or endorsed
 by Podium or Eric Rea.*
 
-A Founder's Associate in the Office of the CEO is a leverage function: you take
-work that only exists because the founder's attention is scarce, and you make it
-happen at a quality the founder would have produced themselves. This project is
-that job, built rather than described.
+The posting has one line that this repository exists to answer:
+
+> "Deep AI fluency and genuine hunger to build agents and workflows — not just
+> a user, a builder; **should be able to show us what they've built or tinkered
+> with**."
+
+This is what I built. Below, each responsibility from the posting, mapped to the
+running system — and, where the prototype deliberately stops short of the job,
+why, and what changes after hire.
 
 ---
 
-## 1. Build and deploy AI agents and workflows
+## "Build and deploy AI agents and workflows to capture raw material at scale; monitor what's being said across channels, surface relevant trends, capture insights from meeting transcripts and customer conversations, and feed the content pipeline."
 
-A five-stage automated pipeline — discovery → extraction → clustering →
-scoring → generation — that runs identically from a dashboard button, a CLI
-script, and a scheduled GitHub Action, all through one `run_full_pipeline()`.
-Two interchangeable analysis backends behind one interface, eleven externalised
-prompt files, structured JSON output with schema coercion, retry and graceful
-degradation. Deployable to Streamlit Cloud, Render, or Railway with Supabase.
+This sentence *is* the product. A five-stage pipeline — discovery → structured
+extraction → theme clustering → transparent scoring → brief/draft generation —
+that runs identically from a dashboard button, a CLI, and a scheduled GitHub
+Action:
 
-**The judgement on display:** knowing which parts should *not* be an LLM.
-Freshness decay, score weighting, trend labelling and risk are arithmetic,
-because those are the numbers a decision gets made on and a confabulated number
-is worse than no number.
+- **Capture at scale:** 36 verified RSS feeds across AI, SaaS, SMB, automotive,
+  home services and aesthetics; allowlisted crawling of Podium's public pages;
+  web search across five pluggable providers; YouTube via two lawful paths.
+  Concurrent fetching across domains with per-domain rate limiting, so a full
+  run finishes in minutes while every individual host sees polite traffic.
+- **Meeting transcripts and customer conversations:** a dedicated manual-entry
+  path (transcript / meeting note / customer insight types) that runs the same
+  dedupe and extraction as everything else. In the prototype it's fed by hand;
+  in the job it's fed by the calls the posting says I'd be sitting in on.
+- **Surface relevant trends:** deterministic theme statistics with six labels —
+  and a hard rule that **a single source is never a trend, and one publisher
+  repeating itself is not corroboration**. A tool that shouts "rising trend" at
+  one blog post wastes exactly the attention this role exists to protect.
 
-## 2. Capture raw content and insights at scale
+## "Write and publish a consistent drumbeat of high-impact, founder-led content… This is the core job."
 
-40 verified RSS feeds, 9 allowlisted Podium sections including 13 customer case
-studies, 16 recurring search queries across 5 pluggable providers, YouTube via
-two lawful paths, and a manual-entry route. Four-layer deduplication (canonical
-URL → content hash → title similarity → shingle Jaccard) so an article found six
-ways is stored once with all six discovery paths preserved.
+The system's primary output is the **evidence-linked content brief**: title,
+core insight, why now, why Podium, why Eric could credibly say it, founder POV,
+hook, 3–5 supporting points *each carrying a source id and a verbatim passage*,
+objections, verification checklist, and a transparent 100-point score. From a
+brief it generates eight formats — LinkedIn post, short-form video outline,
+long-form essay outline, executive talking points, podcast prep, customer-story
+structure, engagement comment, internal briefing note.
 
-**The judgement:** the brief said forty good sources beat thousands of weak ones.
-So the system caps sources per run, discards bodies under 80 words, and discounts
-vendor marketing — it optimises for signal density, not row count.
+The judgment on display: **the machine drafts, the human publishes.** Every
+draft lands in `pending_review` with a *computed* evidence score and its own
+unsupported sentences flagged. Nothing in this system can post anywhere. The
+"consistent drumbeat" comes from the associate shipping daily from a pipeline
+that always has evidence-backed material ready — not from automation pretending
+to be the founder.
 
-## 3. Monitor public conversations and industry signals
+## "Own social engagement end-to-end… maintaining a hit list of influential voices in the business, AI, and SMB space."
 
-Coverage across every vertical Podium sells into — automotive retail, home
-services, aesthetics, healthcare, retail — plus AI, SaaS and the competitor blogs
-of Birdeye, Weave and Thryv. The Engagement Watchlist surfaces conversations
-worth a human's attention, with priority, relevance rationale, and a suggested
-angle that must add a distinction or a question, never a pitch.
+The **Engagement Watchlist is that hit list**, generated from the corpus:
+person/company, the specific recent signal, why it matters, the honest
+connection to Podium ("adjacent only" when that's the truth), a suggested
+response angle that must add a distinction or a question — never a pitch — a
+priority, and risk notes that sometimes say *stay out of this thread*.
 
-**The judgement:** the watchlist is deliberately incapable of acting. No
-automated comment, like, repost, follow, connection or message — and it will
-recommend *staying out* of a thread when that is the right answer.
+One deliberate line: the prototype **suggests, and a human acts**. Automating
+comments/likes/reposts on LinkedIn or X violates platform terms, and a
+detected-automated founder account is a category-authority write-off. The
+workflow the posting asks for is real — it's the associate working the queue
+every morning, at a cadence the tool makes sustainable. That's also the
+compliant reading of "showing up in the right conversations": *showing up* is
+the human part.
 
-## 4. Identify meaningful trends
+## "Develop a distinct founder voice and narrative…"
 
-Deterministic statistics per theme: source count, distinct domains, distinct
-industries, period-over-period change, average relevance, evidence strength and
-business impact, recency. Six labels: emerging, rising, stable, declining,
-saturated, low confidence.
+The Voice Library measures approved public examples — hook structure, sentence
+rhythm, use of numbers, customer stories, contrast framing, CTAs — and produces
+an editable guide the draft generator scores against. Its defining property is
+honesty: with zero examples it says no voice conclusion can be drawn; with
+fewer than five it warns; default assumptions the examples don't exhibit are
+listed as *unconfirmed*, not asserted. It never claims to imitate anyone — the
+label is "founder voice alignment based on approved public examples."
 
-**The judgement — and the most important design decision in the project:** a
-single source is never a trend, and one publisher repeating itself is not
-corroboration. Both fall to `low_confidence` by rule. It is trivially easy to
-build something that shouts "RISING TREND" at one blog post; that tool would
-waste a CEO's time, which is the only resource this role exists to protect.
+## "Stay obsessively current on trends in AI, SaaS, SMB, and the verticals Podium serves…"
 
-## 5. Analyse interviews, articles, transcripts, customer stories, announcements
+The feed configuration is that sentence turned into YAML: TechCrunch/VentureBeat/
+Verge/ZDNet/Latent Space for AI, SaaStr and Sifted for SaaS, seven home-services
+trade publications, four automotive-retail outlets, four aesthetics titles —
+plus the public blogs of Birdeye, Weave and Thryv, because competitor
+positioning is a signal, auto-flagged as vendor marketing so it can never
+masquerade as independent evidence. The Daily Brief page compresses it into a
+morning read with a Markdown export.
 
-Per source: entities, industries, customer segment, primary and secondary themes,
-the customer problem, the main claim, verbatim supporting passages, verbatim
-quotes with attribution, numerical claims *with their original sentence*, six
-0-10 relevance scores, novelty, promotional-source and familiar-narrative flags,
-and verification notes.
+## "Write long-form content when needed: essays, op-eds, bylines…"
 
-Not summarisation. Each cluster answers: why does this matter to Podium, why
-could this founder credibly speak to it, what business problem does it reveal, is
-this new or repeated, what evidence supports it, what angle exists, what must be
-verified, what format fits.
+The long-form essay outline format produces a thesis, sections each pinned to
+source ids, and — critically — sections *labelled `[NEEDS EVIDENCE]`* rather
+than padded with plausible-sounding filler when the corpus can't support them.
 
-## 6. Organise information into a useful knowledge base
+## "High output, low ego — produces a lot, takes feedback fast, not precious about drafts."
 
-Eight-table schema, portable between SQLite and Supabase Postgres via one
-environment variable. Full-text search with filters on date, type, domain,
-industry, theme and status; per-source detail separating evidence from
-interpretation; extraction errors surfaced; one-click reprocessing.
+Built into the architecture: every draft ships with its own audit arguing
+against it — evidence score computed sentence-by-sentence, unsupported claims
+listed, verification items enumerated, banned-hype phrases flagged. Briefs are
+required to contain at least two genuine objections to themselves. The system
+treats its own output as a starting point for review, which is the only honest
+way to treat AI-drafted founder content.
 
-## 7. Create evidence-backed content opportunities
+## Nice-to-haves
 
-Briefs carry title, core insight, why now, why Podium, why Eric, audience,
-founder POV, hook, 3-5 supporting points *each with source ids and a verbatim
-passage*, objections with honest responses, format, CTA, verification checklist,
-risk notes and confidence.
-
-**The judgement:** points that cannot be evidenced are **deleted, not softened**.
-Softening is how a brief quietly becomes unfalsifiable. And every brief must
-argue against itself — `potential_objections` requires at least two genuine
-counter-arguments, because a brief that survives no objection is not ready for a
-CEO.
-
-## 8. Support founder-led thought leadership
-
-Eight output formats from LinkedIn post to internal briefing note, each linked to
-its opportunity and source evidence. Voice alignment derived from manually
-approved public examples.
-
-**The judgement:** the voice library refuses to overclaim. With zero examples it
-reports that no voice conclusion can be drawn and scores alignment 0 rather than
-inventing one. With fewer than five it warns. Default assumptions are only
-asserted when the examples actually exhibit them — everything else is listed as
-*unconfirmed*. And the customer-story format deliberately produces a **structure
-plus interview questions**, never a story, because inventing a customer is the
-single most damaging thing a tool like this could do.
-
-## 9. Preserve the original sources behind every recommendation
-
-Canonical URLs on every row; the full set of discovery queries retained; evidence
-passages stored with source id, URL and domain; live clickable links from every
-brief and draft; a unique constraint on `canonical_url`; and a test asserting that
-every brief evidence passage exists verbatim in its cited source.
-
-## 10. Use human approval before anything is published
-
-Seven-stage pipeline status; drafts land in `pending_review`; approve / request
-changes / reject with reviewer notes; approved and in-review briefs are never
-overwritten by regeneration; a verification checklist that must be worked
-through. **The system has no publishing capability at all** — approval records a
-human decision, and posting remains a manual act.
+- *"Experience building agentic content workflows (not just using AI tools, but
+  wiring them together)"* — five connectors, two swappable analysis backends,
+  eleven externalised prompts, a verbatim evidence gate enforced in code, four-
+  layer deduplication, transparent scoring, and one orchestrator shared by UI,
+  CLI and scheduler. 211 tests.
+- *"Familiarity with vertical industries (auto, home services, healthcare/
+  aesthetics)"* — the theme taxonomy, industry classifier, and feed roster are
+  built specifically around Podium's verticals, including per-theme negative
+  keywords so "after-hours trading" never gets filed under missed customer
+  calls.
 
 ---
 
-## What the constraints demanded
+## The one design decision to ask me about
 
-No OpenAI key, no search key, and YouTube's public feed endpoint dead from this
-network. The response was to build the LLM path properly, unit-test it, and make
-the deterministic path good enough to carry a real demo — then say plainly in the
-README which parts are unproven.
+The hard problem in founder content isn't collection — it's that LLMs
+confabulate quotes, statistics and customer stories, and a CEO cannot publish
+what he can't verify. So the anti-hallucination guarantee is enforced **in
+code, not in a prompt**: every quote, passage and figure is re-checked verbatim
+against the stored source before the database write; failures are discarded and
+the discard recorded. A hallucinating model's worst case is returning nothing —
+which lowers the evidence score, which lowers the ranking. **Fabrication is
+structurally punished, not politely discouraged.** That's the difference
+between a content engine a CEO can trust with his name and one he can't.
 
-That is the part of this role that does not appear in a job description: shipping
-the complete thing under real constraints, and being straight about where the
-edges are, rather than demoing the happy path and hoping nobody checks.
+---
 
-## The one thing to take away
+## Post-hire roadmap: prototype → the actual job
 
-The hard problem is not collecting content. It is that language models confabulate
-quotes, statistics and customer stories, and a founder cannot publish what they
-cannot verify.
+What changes on day one inside the company, in priority order:
 
-So the guarantee is enforced in code, not in a prompt. Every quote, evidence
-passage and numerical claim is re-checked against the stored source text before
-it is written to the database. A hallucinating model cannot get a fabricated
-quote into this system — its worst case is returning nothing, which lowers the
-evidence score, which lowers the opportunity score.
+1. **Real raw material.** Replace public-web scraping as the primary input with
+   what the posting describes: meeting transcripts, customer calls, product
+   reviews, front-line interviews — ingested through the transcript path that
+   already exists, with consent and internal-use rules replacing the crawler's
+   robots.txt rules.
+2. **Real founder voice.** Swap the placeholder voice examples for Eric's
+   actual public posts and interview transcripts (pasted or API-sourced with
+   authorisation), so voice alignment scores mean something.
+3. **Official channel APIs.** LinkedIn and X publishing/analytics through their
+   sanctioned APIs under company accounts — draft → human approve → publish
+   becomes one workflow, with the approval gate kept.
+4. **The feedback loop the prototype can't have:** which posts drove inbound,
+   deal credibility mentions, and follower-quality growth — fed back into
+   opportunity scoring so "what worked" becomes a scoring input.
+5. **Engagement cadence:** the watchlist becomes a daily working queue with
+   SLAs (reviewed every morning, acted on by a human, logged), and the hit list
+   grows from real conversations, not just crawled sources.
+6. **Infra:** Supabase + scheduled runs (already built), auth, and the LLM
+   backend turned on (already built, verbatim-gated, waiting for a key).
 
-**Fabrication is structurally punished rather than merely discouraged.** That is
-the difference between a content tool a founder can use and one they cannot.
+The prototype's constraints — no platform automation, no fabricated voice, no
+unverifiable claims — aren't limitations to outgrow. They're the operating
+principles that make founder-led content durable, and they carry into the job
+unchanged.

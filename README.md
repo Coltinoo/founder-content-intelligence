@@ -4,7 +4,7 @@
 >
 > Nothing in this repository has been written, reviewed, or approved by Eric Rea or anyone at Podium. Every generated draft is an AI-assisted suggestion for human review. Nothing is ever published automatically.
 
-Built as an independent work sample for the **Founder's Associate, Office of the CEO** role at Podium.
+Built as an independent work sample for the [**Founder's Associate, Office of the CEO**](https://job-boards.greenhouse.io/podium81/jobs/7967715) role at Podium — the posting asks for someone who can *"build and deploy AI agents and workflows to capture raw material at scale"* and *"should be able to show us what they've built."* This is that. See [docs/ROLE_MAPPING.md](docs/ROLE_MAPPING.md) for the line-by-line mapping and the post-hire roadmap.
 
 ---
 
@@ -28,20 +28,20 @@ It does not summarise articles. For each cluster of signals it answers: *why doe
 
 ### What is actually in the shipped database
 
-Produced by a real run (`python scripts/report_deliverables.py`), with **no LLM key configured** — the deterministic backend did all of it:
+Produced by a real run (`python scripts/report_deliverables.py`), with **no LLM key configured** — the deterministic backend did all of it. **The complete pipeline — 91 candidate fetches, extraction, trends, briefs, watchlist — finished in 2 minutes 36 seconds**, because fetching is concurrent across unrelated hosts while each host keeps its polite per-domain delay:
 
 | | |
 |---|---|
-| Sources | **74** across **18 distinct domains** (29 Podium first-party, 45 RSS) |
-| Extracted signals | **55** |
-| Verbatim evidence passages | **211** — every one re-verified against its source before the write |
-| Verbatim quotes | **88** · numerical claims **219**, all flagged for verification |
-| Themes | **17** — 3 rising, 10 emerging, 1 stable, **3 `low_confidence`** |
-| Content opportunities | **14** (1 auto-archived when its evidence base weakened) |
+| Sources | **86** across **22 distinct domains** (32 Podium first-party, 54 RSS) |
+| Extracted signals | **70** |
+| Verbatim evidence passages | **301** — every one re-verified against its source before the write |
+| Verbatim quotes | **92** · numerical claims **210**, all flagged for verification |
+| Themes | **18** — 1 rising, 13 emerging, 3 saturated, **1 `low_confidence`** |
+| Content opportunities | **10** promoted (8 themes evaluated and skipped, with reasons) |
 | Drafts | **12** across 6 formats, all `pending_review` |
-| Access-restricted, not bypassed | **10** |
+| Access-restricted, not bypassed | **15** · deferred to honour a host's crawl-delay: **3** |
 
-The `low_confidence` themes are the point, not a gap: *Speed to lead* has 4 sources but from **1 domain**, so the system refuses to call it a trend.
+The `low_confidence` label is the point, not a gap: *Speed to lead* has multiple sources but from **1 domain**, so the system refuses to call it a trend.
 
 ---
 
@@ -82,9 +82,14 @@ python -m venv .venv
 pip install -r requirements.txt
 cp .env.example .env             # optional — the app runs with no keys at all
 python scripts/init_db.py
-python scripts/run_discovery.py  # fetches real public sources (a few minutes)
+python scripts/run_discovery.py --quick   # demo-sized run, ~2 minutes
 streamlit run streamlit_app.py
 ```
+
+Drop `--quick` for a full run. Fetching is concurrent across unrelated domains
+while each individual host stays politely rate-limited, so a full run is
+minutes, not tens of minutes. The dashboard's *Run discovery* has the same
+quick/standard choice.
 
 Open http://localhost:8501.
 
@@ -145,7 +150,7 @@ founder-content-intelligence/
 ├── prompts/                      # 11 editable prompt files + _shared_rules.md
 ├── config/                       # settings · scoring · sources · queries · feeds (YAML)
 ├── scripts/                      # init_db · run_discovery · verify_feeds · verify_youtube
-├── tests/                        # 205 tests
+├── tests/                        # 211 tests
 └── .github/workflows/discovery.yml
 ```
 
@@ -290,7 +295,7 @@ Set the same environment variables. Add a Render Cron Job / Railway cron running
 python -m pytest tests -q
 ```
 
-205 tests covering URL normalisation and canonicalisation, content hashing and near-duplicate similarity, all four dedupe layers plus rediscovery merging, the verbatim gate (fabricated quotes/passages/numbers are dropped), heuristic extraction completeness and determinism, LLM output coercion (out-of-taxonomy themes rejected, scores clamped, placeholders nulled), score/risk/confidence calculation, missing-API-key behaviour, unsupported-source handling (blocked domains, non-HTTP schemes, unknown prompts), database creation and JSON round-trips, ingest-time deduplication, channel interleaving (undated first-party sources must not be starved by dated feed items), bounded feed fetching, restricted-body handling (`summary_only`), draft attribution (a verbatim source sentence is never rendered as the author's own words), trend guards (single source and single domain are never trends), voice-library honesty, and brief↔source linkage (every brief evidence passage must exist verbatim in its cited source).
+211 tests covering URL normalisation and canonicalisation, content hashing and near-duplicate similarity, all four dedupe layers plus rediscovery merging, the verbatim gate (fabricated quotes/passages/numbers are dropped), heuristic extraction completeness and determinism, LLM output coercion (out-of-taxonomy themes rejected, scores clamped, placeholders nulled), score/risk/confidence calculation, missing-API-key behaviour, unsupported-source handling (blocked domains, non-HTTP schemes, unknown prompts), database creation and JSON round-trips, ingest-time deduplication, channel interleaving (undated first-party sources must not be starved by dated feed items), bounded feed fetching, restricted-body handling (`summary_only`), draft attribution (a verbatim source sentence is never rendered as the author's own words), trend guards (single source and single domain are never trends), voice-library honesty, and brief↔source linkage (every brief evidence passage must exist verbatim in its cited source).
 
 ---
 
@@ -308,7 +313,7 @@ These are the honest edges of the build, several discovered by actually running 
 8. **Ten sources were access-restricted** (Inc., Dermatology Times). Nothing was bypassed; where the publisher syndicated a summary it was kept as `summary_only` with an evidence penalty, otherwise the row records the refusal.
 9. **No semantic embedding deduplication.** Layer 4 is lexical shingling, which catches reprints but not a genuine paraphrase.
 10. **Voice alignment is a style-distance metric**, measured against a small manual sample — not a judgement of authenticity. The six seeded examples are Podium *company* content, clearly labelled as not verified as founder writing.
-11. **Crawling is slow by design.** Per-domain rate limiting plus honouring publishers' declared `Crawl-delay` means a 70-source run takes 10-20 minutes. That is the correct trade, not a bug.
+11. **Politeness now costs minutes, not tens of minutes.** Fetching is concurrent across unrelated hosts while each host keeps its per-domain delay, and extreme robots `Crawl-delay` values (searchengineland.com declares 600s/page) are honoured by *deferring* those items to a future run — or keeping the publisher's own RSS summary — rather than sleeping behind them. A host that effectively forbids bulk crawling therefore contributes little content per run; that is its choice, respected.
 12. **Single-process Streamlit with no auth.** Fine for a demo; not multi-tenant, no user accounts, **not production-ready**.
 
 ## Future improvements

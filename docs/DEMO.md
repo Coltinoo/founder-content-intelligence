@@ -1,7 +1,18 @@
 # Two-minute demo script
 
+For the [Founder's Associate, Office of the CEO](https://job-boards.greenhouse.io/podium81/jobs/7967715)
+interview. The posting says the candidate *"should be able to show us what
+they've built or tinkered with"* — this walkthrough is that moment, so drive it
+yourself rather than narrating screenshots.
+
 **Setup before you present:** run `python scripts/run_discovery.py` at least once
 so the library has real data, then `streamlit run streamlit_app.py`.
+
+**Running it live:** the *Quick demo* preset (~25 sources) finishes in about two
+minutes — start it at the top of the conversation and let the log scroll while
+you talk over it. Fetches run concurrently across unrelated domains while each
+host stays politely rate-limited, which is itself worth one sentence: "it's fast
+because it parallelises across sites, not because it hammers any one of them."
 
 ---
 

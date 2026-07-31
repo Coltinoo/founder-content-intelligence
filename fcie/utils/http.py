@@ -76,6 +76,19 @@ class RateLimiter:
 
     def wait(self, host: str) -> float:
         """Block until this host may be hit again. Returns seconds slept."""
+        reserved = self.try_reserve(host, max_wait=None)
+        assert reserved is not None  # unbounded wait always reserves
+        return reserved
+
+    def try_reserve(self, host: str, max_wait: float | None) -> float | None:
+        """Reserve the next polite slot for ``host`` — unless it is too far away.
+
+        Some publishers declare robots ``Crawl-delay`` values of 60-600 seconds.
+        Honouring that must not mean a batch quietly sleeps for hours behind one
+        host: when the required wait exceeds ``max_wait`` the slot is NOT
+        reserved and ``None`` is returned, so the caller can defer that item to
+        a future run. ``max_wait=None`` means wait however long it takes.
+        """
         with self._lock:
             delay = self._overrides.get(host, self.default_delay)
             last = self._last.get(host)
@@ -85,10 +98,16 @@ class RateLimiter:
                 elapsed = now - last
                 if elapsed < delay:
                     sleep_for = delay - elapsed
+            if max_wait is not None and sleep_for > max_wait:
+                return None
             self._last[host] = now + sleep_for
         if sleep_for > 0:
             time.sleep(sleep_for)
         return sleep_for
+
+    def current_delay(self, host: str) -> float:
+        with self._lock:
+            return self._overrides.get(host, self.default_delay)
 
 
 class RobotsCache:
@@ -197,7 +216,15 @@ class PoliteFetcher:
         return any(marker in head for marker in _RESTRICTION_MARKERS)
 
     # ── main entry point ────────────────────────────────────────────────
-    def fetch(self, url: str) -> FetchResult:
+    def fetch(self, url: str, *, max_wait: float | None = None) -> FetchResult:
+        """Fetch one page politely.
+
+        ``max_wait`` bounds how long this call may sleep for the host's polite
+        slot. When the wait would exceed it (a publisher declaring a large
+        robots ``Crawl-delay``), the fetch is *deferred* — skipped with reason
+        ``crawl_delay_deferred`` — rather than stalling the whole run. The
+        delay itself is always honoured; we simply decline to queue behind it.
+        """
         url = (url or "").strip()
         result = FetchResult(url=url)
 
@@ -224,7 +251,15 @@ class PoliteFetcher:
         declared_delay = self.robots.crawl_delay(url)
         if declared_delay:
             self.limiter.set_delay(host, declared_delay)
-        self.limiter.wait(host)
+        if self.limiter.try_reserve(host, max_wait) is None:
+            result.skipped_reason = "crawl_delay_deferred"
+            result.error = (
+                f"{host} declares a crawl delay of "
+                f"{self.limiter.current_delay(host):.0f}s; this page is deferred to a "
+                "future run rather than queueing behind it. The delay is honoured, "
+                "not bypassed."
+            )
+            return result
 
         try:
             resp = self._client.get(url)

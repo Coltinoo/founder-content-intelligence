@@ -100,7 +100,18 @@ YAML in `config/` is the editable surface (Settings page writes it back). `FCIE_
 env vars override. Secrets are read **only** from the environment and never
 written to YAML, so the Settings page cannot leak a key into a committed file.
 
-### 8. Connectors never raise
+### 8. Concurrency follows the politeness boundary
+
+Rate limiting is per-host, so that is exactly where parallelism stops: the four
+connectors discover concurrently, RSS feeds (~30 hosts) are fetched in a pool,
+and article bodies are prefetched in batches of 16 across domains — while the
+thread-safe `RateLimiter` guarantees each individual host still sees at most
+one request per delay window, and database writes stay strictly sequential
+(SQLite, one writer). Result: a full run in minutes instead of tens of minutes,
+with *less* per-host pressure than the old serial crawl concentrated on one
+site at a time.
+
+### 9. Connectors never raise
 
 Every connector returns `ConnectorResult` with `configured`, `setup_message`,
 `errors` and `skipped`. A dead feed, a 403, or a missing key produces a visible,
@@ -162,5 +173,6 @@ last line of defence against duplicates.
 | LLM invents a source id | supporting point dropped in `LLMBriefBuilder.build` |
 | Body under 25 words | skipped, `status='needs_review'`, reason stored |
 | Unresponsive publisher | every feed and page fetch goes through `httpx` with an explicit timeout, plus a 45s socket-level backstop set in `config.py`. `feedparser`'s own urllib fetcher has **no timeout** and is never used to make the request — we fetch the bytes and hand it a string. |
+| Host with an extreme robots `Crawl-delay` | honoured by **deferral**: when the next polite slot is more than 30s away (`MAX_POLITE_WAIT_SECONDS`), the item is deferred to a future run — kept as the publisher's own RSS summary when one exists, otherwise producing no row at all. A refused reservation does not push the host's next slot out. Without this, searchengineland.com's declared 600s delay stalled a whole run for hours. |
 | Connector crashes | caught in `run_ingestion`, logged, run continues |
 | Whole stage crashes | caught in `run_full_pipeline`, recorded, later stages still run |

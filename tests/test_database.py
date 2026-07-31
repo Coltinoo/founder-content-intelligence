@@ -197,6 +197,176 @@ class TestChannelInterleaving:
         assert _interleave_by_channel([]) == []
 
 
+class TestCrawlDelayDeferral:
+    """A publisher declaring Crawl-delay: 600 must not stall the run for hours.
+
+    The delay is honoured — we just decline to queue behind it, deferring the
+    item (or keeping the publisher's own RSS summary) instead. This was a real
+    hang: searchengineland.com declares a 600-second crawl delay.
+    """
+
+    def test_try_reserve_refuses_waits_beyond_the_bound(self):
+        from fcie.utils.http import RateLimiter
+
+        limiter = RateLimiter(default_delay=0.0)
+        limiter.set_delay("slow.example.com", 600.0)
+        assert limiter.try_reserve("slow.example.com", max_wait=30.0) == 0.0, (
+            "the first request needs no wait and must proceed"
+        )
+        assert limiter.try_reserve("slow.example.com", max_wait=30.0) is None, (
+            "the second request would wait 600s and must be refused, not slept"
+        )
+        # Unbounded callers still get a reservation (they choose to wait) —
+        # proven with a small delay so the test itself does not sleep.
+        limiter.set_delay("quick.example.com", 0.01)
+        limiter.try_reserve("quick.example.com", max_wait=None)
+        assert limiter.try_reserve("quick.example.com", max_wait=None) is not None
+
+    def test_try_reserve_does_not_burn_the_slot_when_refusing(self):
+        from fcie.utils.http import RateLimiter
+
+        limiter = RateLimiter(default_delay=0.0)
+        limiter.set_delay("slow.example.com", 600.0)
+        limiter.try_reserve("slow.example.com", max_wait=30.0)
+        before = limiter._last["slow.example.com"]
+        assert limiter.try_reserve("slow.example.com", max_wait=30.0) is None
+        assert limiter._last["slow.example.com"] == before, (
+            "a refused reservation must not push the next polite slot further out"
+        )
+
+    def test_deferred_item_with_summary_becomes_summary_only(self, temp_db):
+        from fcie.connectors.base import DiscoveredItem
+        from fcie.pipeline.ingest import _store_item
+        from fcie.utils.http import FetchResult, RateLimiter
+
+        class _DeferringFetcher:
+            limiter = RateLimiter(0.0)
+
+            def fetch(self, url, *, max_wait=None):
+                return FetchResult(
+                    url=url, ok=False, skipped_reason="crawl_delay_deferred",
+                    error="host declares a crawl delay of 600s; deferred.",
+                )
+
+        summary = ("Search marketers report local businesses now lose most after-hours "
+                   "enquiries to whichever competitor answers first, the study found. " * 3)
+        item = DiscoveredItem(
+            source_url="https://searchengineland.example/story", source_type="rss",
+            title="After-hours enquiries go to whoever answers", summary=summary,
+            needs_fetch=True, published_at=datetime.now(timezone.utc),
+        )
+        outcome = _store_item(item, fetcher=_DeferringFetcher(), fetch_bodies=True)
+        assert outcome["result"] == "stored"
+        with temp_db.session_scope() as session:
+            source = session.get(Source, outcome["id"])
+            assert source.status == "summary_only"
+            assert "deferred" in (source.fetch_error or "")
+
+    def test_deferred_item_without_summary_writes_no_row(self, temp_db):
+        from fcie.connectors.base import DiscoveredItem
+        from fcie.pipeline.ingest import _store_item
+        from fcie.utils.http import FetchResult, RateLimiter
+
+        class _DeferringFetcher:
+            limiter = RateLimiter(0.0)
+
+            def fetch(self, url, *, max_wait=None):
+                return FetchResult(
+                    url=url, ok=False, skipped_reason="crawl_delay_deferred",
+                    error="host declares a crawl delay of 600s; deferred.",
+                )
+
+        item = DiscoveredItem(
+            source_url="https://searchengineland.example/other", source_type="rss",
+            title="No summary here", summary="", needs_fetch=True,
+        )
+        outcome = _store_item(item, fetcher=_DeferringFetcher(), fetch_bodies=True)
+        assert outcome["result"] == "deferred"
+        with temp_db.session_scope() as session:
+            assert session.scalar(select(Source).limit(1)) is None, (
+                "a deferral we learned nothing from must not pollute the library"
+            )
+
+
+class TestConcurrentIngestion:
+    """The batched prepare/store split must behave exactly like the serial path."""
+
+    _TOPICS = [
+        "plumbing dispatch scheduling", "roof inspection quoting", "medspa booking waitlists",
+        "dealership trade-in appraisals", "hvac maintenance contracts", "dental recall reminders",
+        "landscaping seasonal contracts", "pest control route planning", "optometry frame sales",
+        "garage door emergency repairs", "pool cleaning subscriptions", "locksmith night rates",
+        "furniture delivery windows", "jewelry repair intake", "tire rotation upsells",
+        "chiropractic new-patient flow", "veterinary triage lines", "salon rebooking rates",
+        "electrician permit backlogs", "moving company estimates", "window tinting bookings",
+        "carpet cleaning bundles", "septic pumping schedules", "solar panel site surveys",
+        "auto glass claims", "physical therapy no-shows", "storage unit tours",
+        "catering tasting sessions", "fence installation bids", "gutter cleaning routes",
+    ]
+
+    def _items(self, n=30):
+        from fcie.connectors.base import DiscoveredItem
+
+        items = []
+        for i in range(n):
+            topic = self._TOPICS[i % len(self._TOPICS)]
+            # Each body must be genuinely distinct, or the shingle-based
+            # near-duplicate layer will (correctly) collapse them.
+            words = " ".join(f"{topic.split()[0]}-{i}-{j}" for j in range(80))
+            body = (f"Operators handling {topic} said case {i} showed the gap clearly. "
+                    f"{words}. The measured outcome for {topic} differed from every "
+                    f"other shop in the study, with detail set {i} recorded separately.")
+            items.append(DiscoveredItem(
+                source_url=f"https://site{i % 10}.example.com/story-{i}",
+                source_type="rss",
+                title=f"Case {i}: what {topic} reveals about response time",
+                published_at=datetime.now(timezone.utc) - timedelta(hours=i),
+                raw_text=body, needs_fetch=False,
+                metadata={"cleaned_text": body},
+            ))
+        return items
+
+    def test_batched_ingestion_stores_respects_cap_and_dedupes(self, temp_db, monkeypatch):
+        from fcie.connectors.base import ConnectorResult
+        from fcie.pipeline import ingest as ingest_module
+
+        items = self._items(30)
+        # Include exact duplicates to prove dedupe still works through the
+        # concurrent path.
+        items += self._items(5)
+
+        class _StubConnector:
+            name = "rss"
+
+            def discover(self):
+                return ConnectorResult(connector="rss", items=items)
+
+        monkeypatch.setattr(ingest_module, "RSSConnector", lambda **kw: _StubConnector())
+
+        report = ingest_module.run_ingestion(
+            include_podium=False, include_rss=True,
+            include_search=False, include_youtube=False,
+            max_sources=20, fetch_bodies=False,
+        )
+        assert report.stored == 20, "cap must hold through the batched path"
+        assert report.duplicates >= 1, "in-run duplicates must still be caught"
+
+        with temp_db.session_scope() as session:
+            rows = session.execute(select(Source.canonical_url)).scalars().all()
+            assert len(rows) == 20
+            assert len(set(rows)) == 20, "no duplicate rows may slip through batching"
+
+    def test_prepare_then_store_equals_store_item(self, temp_db):
+        from fcie.pipeline.ingest import _prepare_item, _store_prepared
+
+        item = self._items(1)[0]
+        prepared = _prepare_item(item, fetcher=None, fetch_bodies=False)
+        assert prepared["status"] == "fetched"
+        assert prepared["text_hash"]
+        outcome = _store_prepared(prepared)
+        assert outcome["result"] == "stored"
+
+
 class TestRestrictedBodyHandling:
     """A blocked article body must never be bypassed, but the publisher's own
     syndicated summary is legitimate content and should not be thrown away."""
@@ -209,7 +379,7 @@ class TestRestrictedBodyHandling:
 
             self.limiter = RateLimiter(0.0)
 
-        def fetch(self, url):
+        def fetch(self, url, *, max_wait=None):
             from fcie.utils.http import FetchResult
 
             return FetchResult(

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -33,6 +34,12 @@ log = logging.getLogger(__name__)
 MIN_BODY_WORDS = 80      # below this we keep the row but mark it needs_review
 MIN_SUMMARY_WORDS = 40   # publisher-supplied RSS summary worth analysing on its own
 
+# Longest we will sleep for one host's polite slot inside a run. Hosts whose
+# robots Crawl-delay puts the next slot further out than this get their items
+# deferred (or their RSS summary used) instead of stalling the whole run —
+# searchengineland.com declares Crawl-delay: 600, i.e. ten minutes per page.
+MAX_POLITE_WAIT_SECONDS = 30.0
+
 
 @dataclass
 class IngestReport:
@@ -42,6 +49,7 @@ class IngestReport:
     fetch_errors: int = 0
     skipped_policy: int = 0
     needs_review: int = 0
+    deferred: int = 0    # host crawl-delay too large to queue behind this run
     connector_summaries: list[str] = field(default_factory=list)
     connector_status: dict[str, dict] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
@@ -56,6 +64,7 @@ class IngestReport:
             "fetch_errors": self.fetch_errors,
             "skipped_policy": self.skipped_policy,
             "needs_review": self.needs_review,
+            "deferred": self.deferred,
             "connectors": self.connector_status,
             "errors": self.errors[:50],
             "setup_messages": self.setup_messages,
@@ -96,37 +105,49 @@ def run_ingestion(
     if include_youtube:
         connectors.append(YouTubeConnector(fetcher=fetcher))
 
+    # Connectors hit disjoint hosts, so running them concurrently is pure win:
+    # per-domain politeness is enforced inside the shared PoliteFetcher (its
+    # RateLimiter and RobotsCache are thread-safe), while the Podium crawl no
+    # longer has to finish before the first RSS feed is even opened.
     all_items: list[DiscoveredItem] = []
-    for connector in connectors:
-        emit(f"Discovering: {connector.name} …")
-        try:
-            result: ConnectorResult = connector.discover()
-        except Exception as exc:  # noqa: BLE001
-            message = f"{connector.name} crashed: {exc.__class__.__name__}: {exc}"
-            log.exception(message)
-            report.errors.append(message)
-            report.connector_status[connector.name] = {"ok": False, "error": message}
-            continue
+    emit("Discovering from " + ", ".join(c.name for c in connectors) + " (concurrent) …")
 
-        report.connector_summaries.append(result.summary())
-        report.connector_status[connector.name] = {
-            "ok": result.configured,
-            "configured": result.configured,
-            "items": result.count,
-            "errors": result.errors[:10],
-            "skipped": result.skipped[:10],
-            "requests": result.requests_made,
-            "setup_message": result.setup_message,
-        }
-        if not result.configured:
-            report.setup_messages.append(f"{connector.name}: {result.setup_message}")
-            emit(f"  {connector.name}: not configured — skipped")
-            continue
+    def _discover(connector) -> ConnectorResult:
+        return connector.discover()
 
-        report.errors.extend(f"{connector.name}: {e}" for e in result.errors[:10])
-        report.skipped_policy += len(result.skipped)
-        all_items.extend(result.items)
-        emit(f"  {connector.name}: {result.count} candidate(s)")
+    with ThreadPoolExecutor(max_workers=max(len(connectors), 1),
+                            thread_name_prefix="discover") as pool:
+        futures = {pool.submit(_discover, c): c for c in connectors}
+        for future in as_completed(futures):
+            connector = futures[future]
+            try:
+                result: ConnectorResult = future.result()
+            except Exception as exc:  # noqa: BLE001
+                message = f"{connector.name} crashed: {exc.__class__.__name__}: {exc}"
+                log.exception(message)
+                report.errors.append(message)
+                report.connector_status[connector.name] = {"ok": False, "error": message}
+                continue
+
+            report.connector_summaries.append(result.summary())
+            report.connector_status[connector.name] = {
+                "ok": result.configured,
+                "configured": result.configured,
+                "items": result.count,
+                "errors": result.errors[:10],
+                "skipped": result.skipped[:10],
+                "requests": result.requests_made,
+                "setup_message": result.setup_message,
+            }
+            if not result.configured:
+                report.setup_messages.append(f"{connector.name}: {result.setup_message}")
+                emit(f"  {connector.name}: not configured — skipped")
+                continue
+
+            report.errors.extend(f"{connector.name}: {e}" for e in result.errors[:10])
+            report.skipped_policy += len(result.skipped)
+            all_items.extend(result.items)
+            emit(f"  {connector.name}: {result.count} candidate(s)")
 
     report.discovered = len(all_items)
     emit(f"Discovered {report.discovered} candidate source(s); storing up to {limit}.")
@@ -137,50 +158,89 @@ def run_ingestion(
     # every candidate, which can take far longer than the source cap implies.
     max_attempts = max(limit * 3, limit + 40)
     attempts = 0
+    processed = 0
 
-    for index, item in enumerate(all_items):
-        if len(report.stored_ids) >= limit:
-            emit(f"Reached the {limit}-source cap for this run.")
-            break
-        if attempts >= max_attempts:
-            emit(
-                f"Reached the {max_attempts}-attempt ceiling after storing "
-                f"{len(report.stored_ids)} source(s); {len(all_items) - index} "
-                "candidate(s) left for the next run."
-            )
-            report.errors.append(
-                f"Attempt ceiling ({max_attempts}) reached — remaining candidates deferred."
-            )
-            break
-        attempts += 1
+    # Two-phase batches: prefetch article bodies concurrently (network-bound,
+    # spread across many domains — the per-domain limiter keeps each host
+    # polite), then dedupe and write sequentially (SQLite wants one writer).
+    # This is where the run time lives: serial fetching of ~60 bodies at 1-2s
+    # politeness each is minutes of pure waiting for unrelated hosts.
+    batch_size = 16
+
+    def _prepare(item: DiscoveredItem) -> tuple[DiscoveredItem, dict | None, str | None]:
         try:
-            outcome = _store_item(item, fetcher=fetcher, fetch_bodies=fetch_bodies)
+            return item, _prepare_item(
+                item, fetcher=fetcher, fetch_bodies=fetch_bodies,
+                polite_max_wait=MAX_POLITE_WAIT_SECONDS,
+            ), None
         except Exception as exc:  # noqa: BLE001
-            message = f"{item.source_url}: {exc.__class__.__name__}: {exc}"
-            log.exception(message)
-            report.errors.append(message)
-            continue
+            return item, None, f"{exc.__class__.__name__}: {exc}"
 
-        if outcome["result"] == "stored":
-            report.stored += 1
-            report.stored_ids.append(outcome["id"])
-            if outcome.get("needs_review"):
-                report.needs_review += 1
-        elif outcome["result"] == "duplicate":
-            report.duplicates += 1
-        elif outcome["result"] == "fetch_error":
-            report.fetch_errors += 1
-        elif outcome["result"] == "policy_skip":
-            report.skipped_policy += 1
+    position = 0
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="fetch") as pool:
+        while position < len(all_items):
+            if len(report.stored_ids) >= limit:
+                emit(f"Reached the {limit}-source cap for this run.")
+                break
+            if attempts >= max_attempts:
+                emit(
+                    f"Reached the {max_attempts}-attempt ceiling after storing "
+                    f"{len(report.stored_ids)} source(s); {len(all_items) - position} "
+                    "candidate(s) left for the next run."
+                )
+                report.errors.append(
+                    f"Attempt ceiling ({max_attempts}) reached — remaining candidates deferred."
+                )
+                break
 
-        if (index + 1) % 10 == 0:
-            emit(f"  processed {index + 1}/{len(all_items)} — {report.stored} stored, "
+            batch = all_items[position: position + batch_size]
+            position += len(batch)
+            attempts += len(batch)
+
+            # Phase 1: fetch bodies in parallel, preserving batch order so the
+            # interleaved channel fairness survives into the store phase.
+            prepared = list(pool.map(_prepare, batch))
+
+            # Phase 2: sequential dedupe + write.
+            for item, payload, error in prepared:
+                if len(report.stored_ids) >= limit:
+                    break
+                if error is not None or payload is None:
+                    message = f"{item.source_url}: {error or 'prepare failed'}"
+                    log.error(message)
+                    report.errors.append(message)
+                    continue
+                try:
+                    outcome = _store_prepared(payload)
+                except Exception as exc:  # noqa: BLE001
+                    message = f"{item.source_url}: {exc.__class__.__name__}: {exc}"
+                    log.exception(message)
+                    report.errors.append(message)
+                    continue
+
+                processed += 1
+                if outcome["result"] == "stored":
+                    report.stored += 1
+                    report.stored_ids.append(outcome["id"])
+                    if outcome.get("needs_review"):
+                        report.needs_review += 1
+                elif outcome["result"] == "duplicate":
+                    report.duplicates += 1
+                elif outcome["result"] == "fetch_error":
+                    report.fetch_errors += 1
+                elif outcome["result"] == "policy_skip":
+                    report.skipped_policy += 1
+                elif outcome["result"] == "deferred":
+                    report.deferred += 1
+
+            emit(f"  processed {processed}/{len(all_items)} — {report.stored} stored, "
                  f"{report.duplicates} duplicate(s)")
 
     fetcher.close()
     emit(
         f"Ingestion complete: {report.stored} stored, {report.duplicates} duplicate(s), "
-        f"{report.fetch_errors} fetch error(s), {report.skipped_policy} skipped by policy."
+        f"{report.fetch_errors} fetch error(s), {report.skipped_policy} skipped by policy, "
+        f"{report.deferred} deferred (host crawl-delay)."
     )
     return report
 
@@ -227,7 +287,24 @@ def ingest_manual_item(item: DiscoveredItem) -> dict:
 
 def _store_item(item: DiscoveredItem, *, fetcher: PoliteFetcher | None,
                 fetch_bodies: bool) -> dict:
-    """Fetch (if needed), deduplicate, and persist a single discovered item."""
+    """Fetch (if needed), deduplicate, and persist a single discovered item.
+
+    Kept as the single-item entry point (manual entry, tests). The batch path
+    in :func:`run_ingestion` calls the two phases separately so fetches can run
+    concurrently while writes stay sequential.
+    """
+    return _store_prepared(_prepare_item(item, fetcher=fetcher, fetch_bodies=fetch_bodies))
+
+
+def _prepare_item(item: DiscoveredItem, *, fetcher: PoliteFetcher | None,
+                  fetch_bodies: bool, polite_max_wait: float | None = None) -> dict:
+    """Network + CPU phase: fetch the body, parse, clean, hash. No database.
+
+    Thread-safe: touches only this item and the (internally-locked) fetcher,
+    so a pool can run many of these against different hosts at once.
+    ``polite_max_wait`` bounds how long we will sleep for one host's polite
+    slot; beyond it the item is deferred rather than stalling the batch.
+    """
     canonical = normalize_url(item.source_url)
     domain = domain_of(canonical) or item.metadata.get("source_domain", "")
 
@@ -243,7 +320,7 @@ def _store_item(item: DiscoveredItem, *, fetcher: PoliteFetcher | None,
 
     # ── fetch the body when the connector only gave us a link ───────────
     if item.needs_fetch and fetch_bodies and fetcher is not None:
-        fetched = fetcher.fetch(item.source_url)
+        fetched = fetcher.fetch(item.source_url, max_wait=polite_max_wait)
         http_status = fetched.status_code
         if fetched.ok:
             article = parse_html(fetched.html, fetched.final_url or item.source_url)
@@ -287,7 +364,53 @@ def _store_item(item: DiscoveredItem, *, fetcher: PoliteFetcher | None,
         item.metadata["summary_only"] = True
         status = "summary_only"
 
-    text_hash = content_hash(cleaned) if cleaned else None
+    # A crawl-delay deferral with no usable summary produces no row at all: we
+    # made no request, learned nothing, and the item will be rediscovered on a
+    # future run when the host's polite slot is actually available.
+    if status == "skipped_crawl_delay_deferred":
+        return {"item": item, "deferred": True, "fetch_error": fetch_error,
+                "canonical": canonical, "domain": domain}
+
+    return {
+        "item": item,
+        "canonical": canonical,
+        "domain": domain,
+        "raw_text": raw_text,
+        "cleaned": cleaned,
+        "title": title,
+        "author": author,
+        "published": published,
+        "fetch_error": fetch_error,
+        "status": status,
+        "fetched_at": fetched_at,
+        "http_status": http_status,
+        "words": words,
+        "needs_review": needs_review,
+        "text_hash": content_hash(cleaned) if cleaned else None,
+    }
+
+
+def _store_prepared(prepared: dict) -> dict:
+    """Database phase: dedupe against existing rows and persist. Sequential."""
+    if prepared.get("deferred"):
+        return {"result": "deferred", "reason": prepared.get("fetch_error"),
+                "url": prepared.get("canonical")}
+
+    item: DiscoveredItem = prepared["item"]
+    canonical = prepared["canonical"]
+    domain = prepared["domain"]
+    raw_text = prepared["raw_text"]
+    cleaned = prepared["cleaned"]
+    title = prepared["title"]
+    author = prepared["author"]
+    published = prepared["published"]
+    fetch_error = prepared["fetch_error"]
+    status = prepared["status"]
+    fetched_at = prepared["fetched_at"]
+    http_status = prepared["http_status"]
+    words = prepared["words"]
+    needs_review = prepared["needs_review"]
+    text_hash = prepared["text_hash"]
 
     with session_scope() as session:
         # Compare against a bounded, relevant candidate set rather than the

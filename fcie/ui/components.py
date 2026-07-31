@@ -23,128 +23,99 @@ from ..utils.format import (
     truncate_words,
 )
 
+# Deliberately plain CSS. Two rules learned the hard way:
+#
+#   1. Never use `prefers-color-scheme`. The app pins Streamlit's light theme in
+#      .streamlit/config.toml, so on a machine set to dark mode the media query
+#      fired and painted cards with a dark background while the text kept
+#      Streamlit's dark ink — dark-on-dark, unreadable. Every colour below is
+#      fixed and light, matching the pinned theme.
+#   2. Always set colour and background together. Inheriting one from Streamlit
+#      and setting the other is what caused that bug.
+#
+# No color-mix(), no variables, no gradients — an interviewer should read the
+# screen instantly, and this has fewer ways to go wrong.
 BASE_CSS = """
 <style>
-  /* ── Design tokens ──────────────────────────────────────────────────── */
-  :root {
-    --fcie-ink:      #16202B;
-    --fcie-muted:    #5B6B7C;
-    --fcie-line:     #E3E8ED;
-    --fcie-surface:  #FFFFFF;
-    --fcie-raised:   #F7F9FB;
-    --fcie-accent:   #1F4E79;
-    --fcie-evidence: #2E6DA4;   /* facts, quoted from a source  */
-    --fcie-infer:    #B4761F;   /* interpretation, not a finding */
-    --fcie-good:     #1E7B4F;
-    --fcie-warn:     #B4761F;
-    --fcie-bad:      #B03A2E;
-    --fcie-radius:   8px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --fcie-ink: #E8EDF2; --fcie-muted: #93A3B4; --fcie-line: #2A3541;
-      --fcie-surface: #0E1620; --fcie-raised: #16202B;
-      --fcie-evidence: #6FA8DC; --fcie-infer: #D9A441;
-      --fcie-good: #4CAF7D; --fcie-warn: #D9A441; --fcie-bad: #E06B5D;
-    }
-  }
+  .block-container {padding-top: 2rem; padding-bottom: 4rem; max-width: 1280px;}
 
-  .block-container {padding-top: 2rem; padding-bottom: 4rem; max-width: 1360px;}
+  /* Typography: three clear levels, nothing decorative. */
+  h1 {font-size: 1.8rem !important; font-weight: 700; color: #16202B;
+      letter-spacing: -0.02em; margin-bottom: 0.2rem !important;}
+  h2 {font-size: 1.15rem !important; font-weight: 700; color: #16202B;
+      margin: 2.2rem 0 0.7rem !important;}
+  h3 {font-size: 1.02rem !important; font-weight: 650; color: #16202B;
+      margin-top: 1.1rem !important;}
+  p, li {line-height: 1.62; color: #16202B;}
 
-  /* ── Typography: a real hierarchy instead of four similar sizes ─────── */
-  h1 {font-size: 1.75rem !important; font-weight: 680; letter-spacing: -0.02em;
-      margin-bottom: 0.15rem !important;}
-  h2 {font-size: 1.08rem !important; font-weight: 640; letter-spacing: -0.005em;
-      margin: 2rem 0 0.6rem !important; text-transform: uppercase;
-      font-variant: small-caps; color: var(--fcie-muted);}
-  h3 {font-size: 1.06rem !important; font-weight: 620; margin-top: 1.1rem !important;}
-  h4 {font-size: 0.9rem !important; font-weight: 620; color: var(--fcie-muted);}
-  p, li {line-height: 1.62;}
+  [data-testid="stMetricValue"] {font-size: 1.9rem; font-weight: 700; color: #16202B;}
+  [data-testid="stMetricLabel"] {font-size: 0.8rem; color: #5B6B7C;}
 
-  [data-testid="stMetricValue"] {font-size: 1.7rem; font-weight: 660;
-      letter-spacing: -0.02em;}
-  [data-testid="stMetricLabel"] {font-size: 0.72rem; letter-spacing: 0.04em;
-      text-transform: uppercase; color: var(--fcie-muted);}
-
-  /* ── Disclaimer: present but never shouting ─────────────────────────── */
   .fcie-disclaimer {
-    font-size: 0.74rem; color: var(--fcie-muted);
-    border-left: 2px solid var(--fcie-line);
-    padding: 0.3rem 0 0.3rem 0.7rem; margin: 0.5rem 0 1.4rem; line-height: 1.5;
+    font-size: 0.74rem; color: #6B7A89; background: #F7F9FB;
+    border-left: 3px solid #D6DEE6; border-radius: 0 6px 6px 0;
+    padding: 0.5rem 0.8rem; margin: 0.6rem 0 1.4rem; line-height: 1.5;
   }
 
-  /* ── Chips: one consistent shape for every piece of metadata ────────── */
+  /* Chips — one shape for all metadata. Colour AND background always set. */
   .fcie-chip {
-    display: inline-flex; align-items: center; gap: 0.28rem;
-    font-size: 0.7rem; font-weight: 550; line-height: 1;
-    padding: 0.24rem 0.5rem; border-radius: 999px;
-    border: 1px solid var(--fcie-line); color: var(--fcie-muted);
-    background: var(--fcie-raised); margin: 0 0.3rem 0.3rem 0; white-space: nowrap;
+    display: inline-block; font-size: 0.72rem; font-weight: 600; line-height: 1.35;
+    padding: 0.2rem 0.55rem; border-radius: 6px; margin: 0 0.3rem 0.3rem 0;
+    white-space: nowrap; background: #F0F3F7; color: #4A5866; border: 1px solid #DDE4EB;
   }
-  .fcie-chip b {color: var(--fcie-ink); font-weight: 660;}
-  .fcie-chip--good {border-color: color-mix(in srgb, var(--fcie-good) 40%, transparent);
-                    color: var(--fcie-good);}
-  .fcie-chip--warn {border-color: color-mix(in srgb, var(--fcie-warn) 45%, transparent);
-                    color: var(--fcie-warn);}
-  .fcie-chip--bad  {border-color: color-mix(in srgb, var(--fcie-bad) 45%, transparent);
-                    color: var(--fcie-bad);}
-  .fcie-chip--accent {border-color: color-mix(in srgb, var(--fcie-accent) 40%, transparent);
-                      color: var(--fcie-accent);}
+  .fcie-chip b {color: #16202B; font-weight: 700;}
+  .fcie-chip--good   {background: #E8F5EE; color: #1B6E47; border-color: #BFE3D0;}
+  .fcie-chip--warn   {background: #FDF3E3; color: #8A5A12; border-color: #F0DBB4;}
+  .fcie-chip--bad    {background: #FCEBE9; color: #963025; border-color: #F2C9C4;}
+  .fcie-chip--accent {background: #EAF1F8; color: #1F4E79; border-color: #C7DAEC;}
 
-  /* ── Cards: give each item an edge so lists stop running together ──── */
+  /* Cards — white surface, dark text, always. */
   .fcie-card {
-    border: 1px solid var(--fcie-line); border-radius: var(--fcie-radius);
-    padding: 0.9rem 1rem; margin-bottom: 0.7rem; background: var(--fcie-surface);
+    border: 1px solid #E3E8ED; border-radius: 8px; background: #FFFFFF;
+    padding: 0.9rem 1rem; margin-bottom: 0.7rem;
   }
-  .fcie-card__title {font-size: 0.97rem; font-weight: 620; line-height: 1.4;
-                     margin-bottom: 0.2rem;}
-  .fcie-card__title a {color: var(--fcie-ink); text-decoration: none;}
-  .fcie-card__title a:hover {color: var(--fcie-accent); text-decoration: underline;}
-  .fcie-card__meta {font-size: 0.76rem; color: var(--fcie-muted); margin-bottom: 0.5rem;}
-  .fcie-card__body {font-size: 0.86rem; line-height: 1.55; margin: 0.35rem 0 0.5rem;}
+  .fcie-card__title {font-size: 0.98rem; font-weight: 650; line-height: 1.4;
+                     color: #16202B; margin-bottom: 0.25rem;}
+  .fcie-card__title a {color: #16202B; text-decoration: none;}
+  .fcie-card__title a:hover {color: #1F4E79; text-decoration: underline;}
+  .fcie-card__meta {font-size: 0.76rem; color: #5B6B7C; margin-bottom: 0.5rem;}
+  .fcie-card__body {font-size: 0.86rem; line-height: 1.55; color: #2C3947;
+                    margin: 0.35rem 0 0.55rem;}
 
-  /* ── Score bar: a number you can compare at a glance ────────────────── */
-  .fcie-score {display: flex; align-items: center; gap: 0.5rem; margin: 0.15rem 0;}
-  .fcie-score__num {font-size: 1.05rem; font-weight: 680; min-width: 2.4rem;
-                    letter-spacing: -0.02em;}
-  .fcie-score__track {flex: 1; height: 5px; border-radius: 999px;
-                      background: var(--fcie-line); overflow: hidden;}
-  .fcie-score__fill {height: 100%; border-radius: 999px; background: var(--fcie-accent);}
-  .fcie-score__label {font-size: 0.7rem; color: var(--fcie-muted);
-                      text-transform: uppercase; letter-spacing: 0.04em;
-                      min-width: 5.5rem;}
+  /* Score bar — the number leads, the bar makes it comparable. */
+  .fcie-score {display: flex; align-items: center; gap: 0.55rem; margin: 0.3rem 0;}
+  .fcie-score__num {font-size: 1.1rem; font-weight: 700; color: #16202B; min-width: 2.3rem;}
+  .fcie-score__track {flex: 1; height: 6px; border-radius: 999px; background: #E7ECF1;}
+  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #1F4E79;}
+  .fcie-score__label {font-size: 0.74rem; color: #5B6B7C; min-width: 5.5rem;}
 
-  /* ── Evidence vs interpretation: the core visual distinction ────────── */
+  /* The one distinction that matters: quoted fact vs our interpretation. */
   .fcie-evidence {
-    border-left: 3px solid var(--fcie-evidence);
-    background: color-mix(in srgb, var(--fcie-evidence) 5%, transparent);
-    padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.88rem; line-height: 1.6;
-    border-radius: 0 var(--fcie-radius) var(--fcie-radius) 0;
+    border-left: 3px solid #2E6DA4; background: #F2F7FC; color: #1B2733;
+    padding: 0.65rem 0.85rem; margin: 0.55rem 0; font-size: 0.88rem;
+    line-height: 1.6; border-radius: 0 6px 6px 0;
   }
   .fcie-inference {
-    border-left: 3px solid var(--fcie-infer);
-    background: color-mix(in srgb, var(--fcie-infer) 6%, transparent);
-    padding: 0.6rem 0.8rem; margin: 0.5rem 0; font-size: 0.88rem; line-height: 1.6;
-    border-radius: 0 var(--fcie-radius) var(--fcie-radius) 0;
+    border-left: 3px solid #C08A2E; background: #FDF8EF; color: #1B2733;
+    padding: 0.65rem 0.85rem; margin: 0.55rem 0; font-size: 0.88rem;
+    line-height: 1.6; border-radius: 0 6px 6px 0;
   }
-  .fcie-srcline {font-size: 0.72rem; color: var(--fcie-muted); margin-top: 0.35rem;}
-  .fcie-srcline a {color: var(--fcie-accent);}
+  .fcie-srcline {font-size: 0.73rem; color: #5B6B7C; margin-top: 0.4rem;}
+  .fcie-srcline a {color: #1F4E79;}
 
-  .fcie-muted {font-size: 0.79rem; color: var(--fcie-muted);}
-  .fcie-lead  {font-size: 0.95rem; line-height: 1.65;}
+  .fcie-muted {font-size: 0.8rem; color: #5B6B7C;}
+  .fcie-lead  {font-size: 1.02rem; line-height: 1.7; color: #16202B;}
 
-  /* ── Sidebar: status you can read in one pass ───────────────────────── */
   section[data-testid="stSidebar"] .fcie-status {
     display: flex; justify-content: space-between; align-items: baseline;
-    font-size: 0.76rem; padding: 0.26rem 0; border-bottom: 1px solid var(--fcie-line);
+    font-size: 0.78rem; padding: 0.3rem 0; border-bottom: 1px solid #E3E8ED;
+    color: #16202B;
   }
   section[data-testid="stSidebar"] .fcie-status span:last-child {
-    color: var(--fcie-muted); text-align: right; margin-left: 0.5rem;
+    color: #5B6B7C; text-align: right; margin-left: 0.5rem;
   }
 
-  hr {margin: 1.3rem 0; opacity: 0.4;}
-  [data-testid="stExpander"] details {border-radius: var(--fcie-radius);
-      border-color: var(--fcie-line);}
+  hr {margin: 1.3rem 0; border-color: #E3E8ED;}
 </style>
 """
 

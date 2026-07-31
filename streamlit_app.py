@@ -75,9 +75,9 @@ c1.metric("Sources collected", counters["total_sources"],
 c1.caption("Public pages read and stored")
 c2.metric("Analysed", counters["extracted_signals"])
 c2.caption("Facts, quotes and themes extracted")
-c3.metric("Worth writing about", counters["opportunities"])
+c3.metric("Ready to write", counters["opportunities"])
 c3.caption("Themes with enough evidence")
-c4.metric("Drafts to review", counters["drafts_pending"])
+c4.metric("To review", counters["drafts_pending"])
 c4.caption("Waiting on a human decision")
 
 st.divider()

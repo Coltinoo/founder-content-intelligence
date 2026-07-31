@@ -214,6 +214,46 @@ class TestNoApiKeyBehaviour:
         assert not _is_permanent("InternalServerError: 500")
         assert not _is_permanent(None)
 
+    def test_daily_rate_limit_is_not_reported_as_a_bad_key(self):
+        """Regression: a real run said "OpenAI rejected the key" when the account
+        had merely used its 50 requests/day. That sends the operator to
+        regenerate a key that works perfectly."""
+        from fcie.ai.client import _diagnose, _is_permanent, _is_rate_limited
+
+        rpd = ("RateLimitError: Error code: 429 - Rate limit reached for gpt-4o-mini in "
+               "organization org-abc on requests per day (RPD): Limit 50, Used 50, "
+               "Requested 1. Please try again in 28m48s.")
+        assert _is_rate_limited(rpd)
+        assert not _is_permanent(rpd), "an allowance cap is not a credential problem"
+
+        message = _diagnose(rpd)
+        assert "rate limit" in message.lower()
+        assert "resets on its own" in message
+        assert "not a problem with the key" in message
+        assert "rejected" not in message.lower(), "must not blame the credentials"
+
+    def test_empty_account_is_reported_as_a_billing_problem(self):
+        from fcie.ai.client import _diagnose
+
+        message = _diagnose("RateLimitError: 429 insufficient_quota — you exceeded "
+                            "your current quota, please check your plan and billing details")
+        assert "quota exhausted" in message.lower()
+        assert "no credit" in message.lower()
+        assert "billing" in message.lower()
+
+    def test_bad_key_is_reported_as_a_credential_problem(self):
+        from fcie.ai.client import _diagnose
+
+        message = _diagnose("AuthenticationError: Incorrect API key provided")
+        assert "rejected the credentials" in message.lower()
+
+    def test_rate_limits_still_stop_the_run(self):
+        """Self-resolving, but not inside a retry window — so stop trying."""
+        from fcie.ai.client import _is_unrecoverable
+
+        assert _is_unrecoverable("RateLimitError: rate limit reached ... requests per day")
+        assert not _is_unrecoverable("APITimeoutError: Request timed out")
+
     def test_repeated_permanent_failures_disable_the_backend(self):
         """One doomed call per source is waste; the breaker stops after three."""
         from fcie.ai.client import AIClient
@@ -295,6 +335,24 @@ class TestLLMCoercion:
             {"notable_quotes": [{"quote": "something", "speaker": "X"}]}, None, "e.com"
         )
         assert result.notable_quotes[0]["verified_verbatim"] is False
+
+    def test_schema_field_name_is_rejected_as_a_supports_note(self):
+        """Regression from a live run: gpt-4o-mini answered "which claim does this
+        support?" with the literal field name, which then rendered as a draft
+        bullet reading "primary_claim." — meaningless, and unscoreable."""
+        result = LLMExtractor._coerce(
+            {"supporting_evidence": [
+                {"passage": "Contractors said after-hours calls go unanswered.",
+                 "supports": "primary_claim"},
+                {"passage": "Response time decided who won the job.",
+                 "supports": "the claim that speed determines which shop wins the work"},
+            ]},
+            None, "e.com",
+        )
+        assert result.supporting_evidence[0]["supports"] is None, (
+            "an identifier-shaped answer must be discarded, not rendered"
+        )
+        assert result.supporting_evidence[1]["supports"], "a real summary must survive"
 
     def test_missing_date_adds_verification_note(self):
         result = LLMExtractor._coerce({}, None, "e.com")

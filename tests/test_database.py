@@ -780,6 +780,34 @@ class TestEvidenceRanking:
         _rank_evidence(ev)
         assert all("trading" not in p["passage"] for p in ev.passages)
 
+    def test_identifier_supports_never_becomes_a_bullet(self):
+        """Second line of defence for the "primary_claim." bullet regression."""
+        from fcie.pipeline.opportunities import HeuristicBriefBuilder, ThemeEvidence
+
+        ev = ThemeEvidence(theme={"name": "Missed after-hours leads"})
+        ev.sources = [{"id": 1, "is_promotional": False, "domain": "achrnews.com",
+                       "industries": []}]
+        ev.passages = [{
+            "source_id": 1, "url": "u1", "domain": "achrnews.com",
+            "supports": "primary_claim",
+            "passage": "Contractors said a missed call after hours is how most jobs are lost.",
+        }]
+        points = HeuristicBriefBuilder._supporting_points(ev)
+        assert points[0]["point"] != "primary_claim"
+        assert "missed call" in points[0]["point"].lower(), (
+            "it must fall back to the verbatim passage"
+        )
+
+    def test_a_real_supports_summary_is_preferred(self):
+        from fcie.pipeline.opportunities import HeuristicBriefBuilder
+
+        assert HeuristicBriefBuilder._usable_supports("primary_claim") is None
+        assert HeuristicBriefBuilder._usable_supports("customer_problem") is None
+        assert HeuristicBriefBuilder._usable_supports("too short") is None
+        assert HeuristicBriefBuilder._usable_supports(
+            "the claim that response speed decides who wins the job"
+        )
+
     def test_repeated_boilerplate_yields_one_point_not_three(self):
         from fcie.pipeline.opportunities import HeuristicBriefBuilder, ThemeEvidence
 

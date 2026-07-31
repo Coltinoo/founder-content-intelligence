@@ -38,6 +38,16 @@ PERMANENT_ERROR_MARKERS = (
     "account is not active", "permission",
 )
 
+# Exhausted *allowance* — distinct from a bad key or an empty account. A daily
+# request cap resets on its own, so calling this "rejected the key" would send
+# the operator to fix something that is not broken. Retrying inside one run is
+# still pointless (the window is minutes to hours away), so it stops the run —
+# but the message has to say what actually happened.
+RATE_LIMIT_MARKERS = (
+    "requests per day", "rpd", "requests per min", "rpm",
+    "tokens per min", "tpm", "rate limit reached", "rate_limit_exceeded",
+)
+
 # After this many consecutive permanent failures the client disables itself for
 # the rest of the process. Without it, a 70-source run makes 70 doomed API calls
 # before finishing on the heuristic backend anyway.
@@ -102,18 +112,17 @@ class AIClient:
         return "OpenAI configured."
 
     def _note_failure(self, error: str) -> None:
-        """Track permanent failures and trip the breaker once they repeat."""
-        if not _is_permanent(error):
+        """Track unrecoverable failures and trip the breaker once they repeat."""
+        if not _is_unrecoverable(error):
             self._permanent_failures = 0
             return
         self._permanent_failures += 1
         if self._permanent_failures >= PERMANENT_FAILURE_LIMIT:
-            detail = "OpenAI quota exhausted" if "quota" in error.lower() else "OpenAI rejected the key"
             self._disabled_reason = (
-                f"{detail} — the LLM backend was disabled after "
+                f"{_diagnose(error)} The LLM backend was disabled after "
                 f"{self._permanent_failures} consecutive failures and the run continued on "
-                f"the deterministic heuristic analyser. Add billing credit (or a valid key) "
-                f"at platform.openai.com and re-run. Original error: {error[:180]}"
+                f"the deterministic heuristic analyser — rows already extracted keep their "
+                f"LLM output. Original error: {error[:200]}"
             )
             log.warning(self._disabled_reason)
 
@@ -181,8 +190,10 @@ class AIClient:
 
             except Exception as exc:  # noqa: BLE001
                 last_error = f"{exc.__class__.__name__}: {exc}"
-                if _is_permanent(last_error):
-                    break  # a bad key or an empty account will not fix itself
+                if _is_unrecoverable(last_error):
+                    # A bad key, an empty account, or an exhausted daily
+                    # allowance: none of these resolve inside a retry window.
+                    break
                 if attempt < retries:
                     time.sleep(1.5 * (attempt + 1))
 
@@ -199,11 +210,51 @@ class AIClient:
 
 
 def _is_permanent(error: str | None) -> bool:
-    """True for failures that repeating the call cannot resolve."""
+    """True for failures that repeating the call cannot resolve at all."""
     if not error:
         return False
     low = error.lower()
     return any(marker in low for marker in PERMANENT_ERROR_MARKERS)
+
+
+def _is_rate_limited(error: str | None) -> bool:
+    """True when the account's request allowance is exhausted (self-resolving)."""
+    if not error:
+        return False
+    low = error.lower()
+    return any(marker in low for marker in RATE_LIMIT_MARKERS)
+
+
+def _is_unrecoverable(error: str | None) -> bool:
+    """True when retrying *within this run* cannot succeed."""
+    return _is_permanent(error) or _is_rate_limited(error)
+
+
+def _diagnose(error: str) -> str:
+    """A first line that names what actually happened, and the real remedy.
+
+    Getting this wrong is worse than saying nothing: telling someone their key
+    was rejected when they have simply used today's allowance sends them to
+    regenerate a key that works fine.
+    """
+    low = error.lower()
+    if _is_rate_limited(low) and not _is_permanent(low):
+        window = "per-day" if ("requests per day" in low or "rpd" in low) else "per-minute"
+        return (
+            f"OpenAI {window} rate limit reached — this is an allowance cap, not a "
+            f"problem with the key, and it resets on its own. To raise it, add credit "
+            f"at platform.openai.com/settings/organization/billing (free tier allows "
+            f"50 requests/day; tier 1 allows 10,000)."
+        )
+    if "insufficient_quota" in low or "exceeded your current quota" in low:
+        return (
+            "OpenAI quota exhausted — the key is valid but the account has no credit. "
+            "Add credit at platform.openai.com/settings/organization/billing."
+        )
+    return (
+        "OpenAI rejected the credentials — check OPENAI_API_KEY is current and has "
+        "access to the configured model."
+    )
 
 
 def _parse_json(text: str) -> dict | None:

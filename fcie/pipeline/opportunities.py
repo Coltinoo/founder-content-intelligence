@@ -565,6 +565,33 @@ class HeuristicBriefBuilder:
                 f"from {len(evidence.distinct_domains)} domain(s).")
 
     @staticmethod
+    def _usable_supports(supports: str | None) -> str | None:
+        """Return the model's `supports` note only if it is actually a summary.
+
+        The extraction schema asks what a passage supports; a live model
+        sometimes echoes the *field name* instead ("primary_claim"), which then
+        rendered as a bullet reading "primary_claim." — no meaning, no verbatim
+        match, and an evidence score of zero. Anything that looks like an
+        identifier or is too short to be a claim is discarded in favour of the
+        passage itself.
+        """
+        text = (supports or "").strip()
+        if len(text.split()) < 4:
+            return None
+        if re.fullmatch(r"[a-z0-9_]+", text):       # snake_case identifier
+            return None
+        if text.lower().replace(" ", "_") in {
+            "primary_claim", "customer_problem", "supporting_evidence",
+            "notable_quotes", "numerical_claims", "content_opportunity",
+        }:
+            return None
+        return text
+
+    @classmethod
+    def _point_text(cls, passage: dict) -> str:
+        return cls._usable_supports(passage.get("supports")) or truncate(passage["passage"], 200)
+
+    @staticmethod
     def _supporting_points(evidence: ThemeEvidence, target: int = 5) -> list[dict]:
         """Every point carries a source id and a verbatim passage. No exceptions.
 
@@ -583,7 +610,7 @@ class HeuristicBriefBuilder:
 
         def add(passage: dict) -> None:
             points.append({
-                "point": passage.get("supports") or truncate(passage["passage"], 200),
+                "point": HeuristicBriefBuilder._point_text(passage),
                 "evidence_source_ids": [passage["source_id"]],
                 "evidence_passage": passage["passage"],
                 "evidence_url": passage["url"],

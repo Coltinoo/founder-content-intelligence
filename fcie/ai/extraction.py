@@ -12,6 +12,7 @@ That means a hallucinating model cannot get a fabricated quote into the database
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -623,11 +624,23 @@ class LLMExtractor:
         result.customer_problem = as_str(data.get("customer_problem"))
         result.primary_claim = as_str(data.get("primary_claim"))
 
+        # A live model sometimes answers "which claim does this support?" with the
+        # *field name* from the schema ("primary_claim") rather than a summary.
+        # Reject identifier-shaped answers at the boundary so they can never be
+        # rendered as a bullet downstream.
+        def as_supports(value) -> str | None:
+            text = as_str(value)
+            if not text or len(text.split()) < 4:
+                return None
+            if re.fullmatch(r"[a-z0-9_]+", text.strip()):
+                return None
+            return text
+
         for item in as_list(data.get("supporting_evidence")):
             if isinstance(item, dict) and item.get("passage"):
                 result.supporting_evidence.append({
                     "passage": str(item["passage"]),
-                    "supports": as_str(item.get("supports")),
+                    "supports": as_supports(item.get("supports")),
                     "verified_verbatim": False,   # proven by enforce_verbatim
                 })
             elif isinstance(item, str):

@@ -55,15 +55,42 @@ def write_yaml(name: str, payload: dict[str, Any]) -> None:
     load_config.cache_clear()
 
 
+def _secret(name: str) -> str | None:
+    """Read a credential from the environment, falling back to Streamlit secrets.
+
+    Streamlit Community Cloud normally exports top-level ``secrets.toml`` entries
+    as environment variables, but that is a convenience rather than a contract —
+    it does not apply to nested sections, and relying on it silently degrades the
+    deployed app to "not configured" if it ever changes. Checking ``st.secrets``
+    directly makes deployment behave the same as local ``.env``.
+
+    Safe outside Streamlit: import and access are both guarded, so the CLI,
+    tests and scheduled runs are unaffected.
+    """
+    value = os.getenv(name)
+    if value and value.strip():
+        return value.strip()
+    try:
+        import streamlit as st
+
+        raw = st.secrets.get(name)  # type: ignore[union-attr]
+    except Exception:  # noqa: BLE001 - no streamlit, no secrets file, bare runtime
+        return None
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
 def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
+    raw = _secret(name)
     if raw is None or raw == "":
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_float(name: str, default: float) -> float:
-    raw = os.getenv(name)
+    raw = _secret(name)
     try:
         return float(raw) if raw else default
     except ValueError:
@@ -71,7 +98,7 @@ def _env_float(name: str, default: float) -> float:
 
 
 def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
+    raw = _secret(name)
     try:
         return int(raw) if raw else default
     except ValueError:
@@ -100,9 +127,7 @@ class Credentials:
 
     @classmethod
     def from_env(cls) -> "Credentials":
-        def g(name: str) -> str | None:
-            value = os.getenv(name)
-            return value.strip() if value and value.strip() else None
+        g = _secret
 
         return cls(
             openai_api_key=g("OPENAI_API_KEY"),
@@ -311,10 +336,10 @@ def load_config() -> AppConfig:
         respect_robots=_env_bool("FCIE_RESPECT_ROBOTS", crawl_y.get("respect_robots", True)),
         max_sources_per_run=_env_int("FCIE_MAX_SOURCES_PER_RUN", crawl_y.get("max_sources_per_run", 60)),
         max_pages_per_podium_section=crawl_y.get("max_pages_per_podium_section", 12),
-        user_agent=os.getenv("FCIE_USER_AGENT") or crawl_y.get("user_agent", CrawlConfig.user_agent),
+        user_agent=_secret("FCIE_USER_AGENT") or crawl_y.get("user_agent", CrawlConfig.user_agent),
     )
     ai = AIConfig(
-        model=os.getenv("FCIE_OPENAI_MODEL") or ai_y.get("model", "gpt-4o-mini"),
+        model=_secret("FCIE_OPENAI_MODEL") or ai_y.get("model", "gpt-4o-mini"),
         temperature=ai_y.get("temperature", 0.2),
         max_extraction_chars=ai_y.get("max_extraction_chars", 14000),
         enable_llm=ai_y.get("enable_llm", True),

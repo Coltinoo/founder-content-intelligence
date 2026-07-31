@@ -28,3 +28,6 @@ Thumbs.db
 # Run artefacts
 run-summary.json
 *.log
+
+# Local deployment notes containing real secret values
+DEPLOY_SECRETS.txt

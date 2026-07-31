@@ -1,0 +1,78 @@
+name: Scheduled discovery
+
+# Runs the same pipeline as the dashboard button and the CLI script.
+# Requires FCIE_DATABASE_URL to point at a persistent database (e.g. Supabase);
+# with the default SQLite file the run would be thrown away with the runner.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1-5"      # 06:00 UTC, weekdays
+  workflow_dispatch:
+    inputs:
+      max_sources:
+        description: "Maximum new sources to store"
+        required: false
+        default: "60"
+      force_heuristic:
+        description: "Skip the LLM and use the deterministic analyser"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: fcie-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      FCIE_DATABASE_URL: ${{ secrets.FCIE_DATABASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+      BING_SEARCH_API_KEY: ${{ secrets.BING_SEARCH_API_KEY }}
+      GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
+      GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      FCIE_USER_AGENT: "FounderContentIntelligenceEngine/0.1 (scheduled run; independent candidate project)"
+      FCIE_CRAWL_DELAY_SECONDS: "2.5"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Warn when no persistent database is configured
+        if: ${{ env.FCIE_DATABASE_URL == '' }}
+        run: |
+          echo "::warning::FCIE_DATABASE_URL is not set. The run will use ephemeral SQLite and its results will be discarded."
+
+      - name: Initialise schema
+        run: python scripts/init_db.py
+
+      - name: Run discovery
+        run: |
+          python scripts/run_discovery.py \
+            --max-sources "${{ github.event.inputs.max_sources || 60 }}" \
+            ${{ github.event.inputs.force_heuristic == 'true' && '--force-heuristic' || '' }} \
+            --json > run-summary.json
+          cat run-summary.json
+
+      - name: Upload run summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discovery-summary-${{ github.run_number }}
+          path: run-summary.json
+          retention-days: 30

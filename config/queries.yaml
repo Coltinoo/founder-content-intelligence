@@ -1,0 +1,81 @@
+# Recurring public web-search queries. Editable here and in the dashboard.
+# Executed through a lawful search API (Tavily / Brave / Bing / Google CSE /
+# OpenAI Responses web_search). Search-engine result pages are never scraped.
+
+queries:
+  - query: "Eric Rea"
+    category: "Eric Rea"
+    enabled: true
+  - query: "Eric Rea Podium"
+    category: "Eric Rea"
+    enabled: true
+  - query: "Podium CEO"
+    category: "Eric Rea"
+    enabled: true
+  - query: "Podium AI Employee"
+    category: "AI employees"
+    enabled: true
+  - query: "Podium AI agents"
+    category: "AI agents"
+    enabled: true
+  - query: "AI employees for local businesses"
+    category: "AI employees"
+    enabled: true
+  - query: "AI agents for automotive dealerships"
+    category: "Automotive"
+    enabled: true
+  - query: "AI for HVAC companies"
+    category: "Home services"
+    enabled: true
+  - query: "AI for plumbing companies"
+    category: "Home services"
+    enabled: true
+  - query: "AI for medspas"
+    category: "Aesthetics"
+    enabled: true
+  - query: "AI for local business lead response"
+    category: "Lead conversion"
+    enabled: true
+  - query: "small business missed calls AI"
+    category: "Lead conversion"
+    enabled: true
+  - query: "AI customer follow-up local business"
+    category: "Customer follow-up"
+    enabled: true
+  - query: "AI revenue generation local business"
+    category: "Revenue"
+    enabled: true
+  - query: "agentic AI SaaS"
+    category: "SaaS"
+    enabled: true
+  - query: "AI implementation for small businesses"
+    category: "Small-business operations"
+    enabled: true
+
+# Taxonomy used for tagging and for the Settings page pickers.
+categories:
+  - Podium
+  - Eric Rea
+  - AI employees
+  - AI agents
+  - Local business
+  - Automotive
+  - Home services
+  - Aesthetics
+  - SaaS
+  - Customer experience
+  - Revenue
+  - Lead conversion
+  - Customer follow-up
+  - Small-business operations
+
+industries:
+  - Automotive
+  - Home services
+  - Aesthetics & medspa
+  - Healthcare
+  - Retail
+  - Professional services
+  - Local business (general)
+  - B2B SaaS
+  - Cross-industry

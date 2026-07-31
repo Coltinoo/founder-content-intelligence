@@ -1,0 +1,16 @@
+[project]
+name = "founder-content-intelligence"
+version = "0.1.0"
+description = "Turns public company, founder, customer and industry signals into a source-grounded founder-content pipeline. Independent candidate project; not affiliated with Podium."
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning:streamlit.*",
+]
+
+[tool.setuptools]
+packages = ["fcie"]

@@ -1,0 +1,30 @@
+# Secrets — never commit
+.env
+.env.local
+.streamlit/secrets.toml
+
+# Local database
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Run artefacts
+run-summary.json
+*.log

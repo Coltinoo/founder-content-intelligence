@@ -1,0 +1,32 @@
+# Runtime settings. Editable from the Settings page in the dashboard.
+# Anything here can be overridden by the matching FCIE_* environment variable.
+
+crawl:
+  delay_seconds: 2.0          # per-domain politeness delay
+  request_timeout: 25
+  respect_robots: true
+  max_sources_per_run: 60
+  max_pages_per_podium_section: 12
+  user_agent: "FounderContentIntelligenceEngine/0.1 (independent candidate project)"
+
+ai:
+  model: "gpt-4o-mini"
+  temperature: 0.2
+  max_extraction_chars: 14000   # cleaned_text is truncated to this before extraction
+  enable_llm: true              # if false, always use the heuristic analyser
+
+discovery:
+  lookback_days: 45             # ignore sources published before this window
+  search_results_per_query: 8
+  rss_items_per_feed: 15
+  youtube_results_per_query: 6
+
+trends:
+  current_period_days: 21
+  previous_period_days: 21
+  min_sources_for_trend: 2      # a single source is never called a trend
+  min_domains_for_trend: 2
+
+pipeline:
+  min_opportunity_score: 55     # signals below this are not promoted to opportunities
+  max_opportunities_per_run: 12

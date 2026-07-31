@@ -1,0 +1,41 @@
+# Transparent 100-point opportunity scoring model.
+# Each component score is 0-10 (from extraction), multiplied by its weight,
+# then scaled to a 0-100 total. The dashboard shows this breakdown verbatim.
+
+weights:
+  podium_relevance: 0.25      # How directly this bears on Podium's market/product
+  founder_relevance: 0.20     # How credibly Eric Rea could speak to it
+  evidence_strength: 0.20     # Quality of customer/market evidence in the source
+  freshness: 0.15             # Recency, decayed over the freshness half-life
+  novelty: 0.10               # Is this a new angle or a repeated narrative
+  business_impact: 0.10       # Size of the commercial problem implied
+
+freshness:
+  # Freshness score 0-10 derived from age in days, linear decay to zero.
+  full_score_days: 7          # <= 7 days old scores 10
+  zero_score_days: 120        # >= 120 days old scores 0
+  unknown_date_score: 4       # sources with no publication date get this + a flag
+
+# Risk score is scored independently on 0-100 (higher = riskier to publish).
+# Each factor contributes its listed number of points when detected.
+risk_factors:
+  weak_sourcing: 18           # single source, no corroboration
+  unverified_numbers: 16      # statistics without a primary reference
+  competitor_claims: 14       # direct claims about named competitors
+  sensitive_claims: 14        # legal, employment, health, financial-advice territory
+  promotional_source: 10      # source is vendor marketing rather than reporting
+  overused_narrative: 10      # theme already saturated in the corpus
+  no_original_insight: 10     # brief restates the source without a founder POV
+  generic_tone: 8             # draft reads like generic AI hype
+  missing_publication_date: 6
+
+risk_bands:
+  low: 24                     # <= 24 → Low
+  moderate: 49                # <= 49 → Moderate
+  elevated: 74                # <= 74 → Elevated
+  # > 74 → High
+
+confidence:
+  # Confidence in the brief = f(evidence strength, distinct domains, quote coverage)
+  min_distinct_domains_for_high: 3
+  min_evidence_passages_for_high: 4

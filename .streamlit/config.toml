@@ -1,0 +1,23 @@
+# Restrained, executive-friendly presentation.
+# Intelligence dashboard, not a social-media scheduler.
+
+[theme]
+base = "light"
+primaryColor = "#1F4E79"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6F8"
+textColor = "#16202B"
+font = "sans serif"
+
+[server]
+headless = true
+# CORS is left enabled: setting it false while XSRF protection is on is
+# contradictory and Streamlit overrides it back with a warning.
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"

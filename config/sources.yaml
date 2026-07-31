@@ -1,0 +1,126 @@
+# Allowlisted domains and seed URLs for first-party crawling.
+#
+# The crawler will ONLY fetch pages whose host is in `allowed_domains`.
+# It never bypasses robots.txt, paywalls, logins, rate limits, or captchas.
+#
+# Every seed below was verified to return HTTP 200 with real content. Seeds that
+# 404 later are recorded as `skipped` with the reason and do not fail the run —
+# add or correct URLs here as the site changes.
+
+allowed_domains:
+  - podium.com
+  - www.podium.com
+  - job-boards.greenhouse.io   # Podium's public job board only, via the seed below
+
+# Never fetched programmatically, regardless of the allowlist.
+# LinkedIn content enters the system only through the manual Voice Library form.
+blocked_domains:
+  - linkedin.com
+  - www.linkedin.com
+  - facebook.com
+  - instagram.com
+  - x.com
+  - twitter.com
+  - threads.net
+  - tiktok.com
+
+podium_sections:
+  - name: "Company / About"
+    category: "company"
+    follow_links: false
+    seeds:
+      - https://www.podium.com/about
+      - https://www.podium.com/careers
+      - https://www.podium.com/
+
+  - name: "AI Employee product"
+    category: "product_ai_employee"
+    follow_links: true
+    seeds:
+      - https://www.podium.com/product/ai-employee
+
+  - name: "Product pages"
+    category: "product"
+    follow_links: false
+    seeds:
+      - https://www.podium.com/phones
+      - https://www.podium.com/reviews
+      - https://www.podium.com/payments
+      - https://www.podium.com/pricing
+
+  # Podium's public customer stories. These are first-party marketing and are
+  # automatically flagged `is_promotional_source`, which lowers their evidence
+  # weight — they show positioning and claimed outcomes, not independent proof.
+  - name: "Customer stories"
+    category: "customer_story"
+    follow_links: false
+    seeds:
+      - https://www.podium.com/case-study/southtowne-auto
+      - https://www.podium.com/case-study/all-seasons-hvac
+      - https://www.podium.com/case-study/kyle-farr-aesthetics
+      - https://www.podium.com/case-study/junk-king
+      - https://www.podium.com/case-study/ev-auto
+      - https://www.podium.com/case-study/muscatell-auto
+      - https://www.podium.com/case-study/power-plus-cleaning
+      - https://www.podium.com/case-study/terri-ross
+      - https://www.podium.com/case-study/speed-to-lead-terri-ross
+      - https://www.podium.com/case-study/central-maine-motor
+      - https://www.podium.com/case-study/stuart-powell-ford-mazda
+      - https://www.podium.com/case-study/couch-potatoes
+      - https://www.podium.com/case-study/ai-voice-home-services
+
+  - name: "Resource Center / blog"
+    category: "resource"
+    follow_links: true
+    seeds:
+      - https://www.podium.com/resource-center
+      - https://www.podium.com/blog
+      - https://www.podium.com/article/the-end-of-code-as-the-bottleneck
+      - https://www.podium.com/article/ai-for-car-dealerships
+      - https://www.podium.com/article/ai-for-hvac-business
+      - https://www.podium.com/article/ai-in-the-plumbing-business
+      - https://www.podium.com/article/ai-customer-service-example
+      - https://www.podium.com/article/answer-business-phone-calls-professionally
+      - https://www.podium.com/article/lead-generation-ideas-for-car-dealers
+      - https://www.podium.com/article/hvac-industry-trends
+
+  - name: "Industry pages"
+    category: "industry"
+    follow_links: false
+    seeds:
+      - https://www.podium.com/automotive
+      - https://www.podium.com/home-services
+      - https://www.podium.com/healthcare
+      - https://www.podium.com/retail
+
+  - name: "What's New / release notes"
+    category: "whats_new"
+    follow_links: true
+    seeds:
+      - https://www.podium.com/whats-new
+      - https://www.podium.com/whats-new/26-6
+      - https://www.podium.com/whats-new/26-5
+      - https://www.podium.com/whats-new/26-4
+
+  - name: "Press, guides & reports"
+    category: "press"
+    follow_links: false
+    seeds:
+      - https://www.podium.com/press
+      - https://www.podium.com/guides/2022-local-business-trends
+      - https://www.podium.com/ebooks/the-new-rules-of-local
+
+  - name: "Public job descriptions"
+    category: "jobs"
+    follow_links: true
+    seeds:
+      - https://job-boards.greenhouse.io/podium81
+
+# YouTube channels ingested via the public per-channel Atom feed
+# (https://www.youtube.com/feeds/videos.xml?channel_id=...). No auth required.
+# Used only when YOUTUBE_API_KEY is absent; with a key, keyword search is used.
+# Channel IDs that return no entries are reported as an error, not silently dropped.
+youtube_channels:
+  - name: "Podium"
+    channel_id: "UCTM8mnJ_pnBWvIcNlfXOTMg"
+    note: "Verify with scripts/verify_youtube.py if the feed returns no entries."

@@ -1,0 +1,267 @@
+# RSS / Atom feeds — the primary zero-credential source of genuine public data.
+#
+# Every entry below was fetched successfully by `python scripts/verify_feeds.py`
+# and returned real entries. Feeds that fail at runtime are recorded with an
+# error and skipped; the app runs fine with zero working feeds.
+#
+# Re-verify at any time:
+#   python scripts/verify_feeds.py
+#   python scripts/verify_feeds.py --disable-broken
+
+feeds:
+  # ── AI / technology ──────────────────────────────────────────────────────
+  - name: "TechCrunch — AI"
+    url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+    category: "AI agents"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "VentureBeat — AI"
+    url: "https://venturebeat.com/category/ai/feed/"
+    category: "AI agents"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "MIT Technology Review — AI"
+    url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+    category: "AI agents"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "Ars Technica — AI"
+    url: "https://arstechnica.com/ai/feed/"
+    category: "AI agents"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "The Verge — AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    category: "AI agents"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "ZDNet — AI"
+    url: "https://www.zdnet.com/topic/artificial-intelligence/rss.xml"
+    category: "AI implementation"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "Latent Space — AI engineering"
+    url: "https://www.latent.space/feed"
+    category: "AI agents"
+    industry: "B2B SaaS"
+    enabled: true
+    verified: true
+  - name: "Forrester — blogs"
+    url: "https://www.forrester.com/blogs/feed/"
+    category: "AI implementation"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  # Disabled: returns HTTP 403 to this client. Not worked around — no header
+  # spoofing, no proxy. Re-enable if the publisher opens the feed up.
+  - name: "Gartner — newsroom"
+    url: "https://www.gartner.com/en/newsroom/rss"
+    category: "AI implementation"
+    industry: "Cross-industry"
+    enabled: false
+    verified: false
+
+  # ── SaaS / B2B ───────────────────────────────────────────────────────────
+  - name: "SaaStr"
+    url: "https://www.saastr.com/feed"
+    category: "SaaS"
+    industry: "B2B SaaS"
+    enabled: true
+    verified: true
+  - name: "Sifted — startups"
+    url: "https://sifted.eu/feed"
+    category: "SaaS"
+    industry: "B2B SaaS"
+    enabled: true
+    verified: true
+
+  # ── Small business / local business ──────────────────────────────────────
+  - name: "Small Business Trends"
+    url: "https://smallbiztrends.com/feed"
+    category: "Small-business operations"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  - name: "Search Engine Land"
+    url: "https://searchengineland.com/feed"
+    category: "Lead conversion"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  - name: "Street Fight — local commerce"
+    url: "https://streetfightmag.com/feed/"
+    category: "Local business"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  - name: "Inc."
+    url: "https://www.inc.com/rss/"
+    category: "Small-business operations"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  - name: "Entrepreneur"
+    url: "https://www.entrepreneur.com/latest.rss"
+    category: "Small-business operations"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  - name: "SmallBizDaily"
+    url: "https://www.smallbizdaily.com/feed/"
+    category: "Small-business operations"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  # Disabled: returns HTTP 403 to this client. Not worked around.
+  - name: "Constant Contact — SMB marketing"
+    url: "https://blogs.constantcontact.com/feed/"
+    category: "Customer follow-up"
+    industry: "Local business (general)"
+    enabled: false
+    verified: false
+
+  # ── Automotive retail ────────────────────────────────────────────────────
+  - name: "CBT News — dealership retail"
+    url: "https://www.cbtnews.com/feed/"
+    category: "Automotive"
+    industry: "Automotive"
+    enabled: true
+    verified: true
+  - name: "Auto Remarketing"
+    url: "https://www.autoremarketing.com/feed/"
+    category: "Automotive"
+    industry: "Automotive"
+    enabled: true
+    verified: true
+  - name: "Auto Dealer Today"
+    url: "https://www.autodealertodaymagazine.com/rss"
+    category: "Automotive"
+    industry: "Automotive"
+    enabled: true
+    verified: true
+  - name: "Digital Dealer"
+    url: "https://digitaldealer.com/feed/"
+    category: "Automotive"
+    industry: "Automotive"
+    enabled: true
+    verified: true
+
+  # ── Home services / trades ───────────────────────────────────────────────
+  - name: "The ACHR News (HVACR)"
+    url: "https://www.achrnews.com/rss/articles"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+  - name: "Contracting Business"
+    url: "https://www.contractingbusiness.com/rss.xml"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+  - name: "Plumbing & Mechanical"
+    url: "https://www.pmmag.com/rss/articles"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+  - name: "PHCP Pros"
+    url: "https://www.phcppros.com/rss/articles"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+  - name: "Plumber Magazine"
+    url: "https://www.plumbermag.com/rss"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+  - name: "HVAC Insider"
+    url: "https://hvacinsider.com/feed/"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+  - name: "Housecall Pro — blog"
+    url: "https://www.housecallpro.com/feed/"
+    category: "Home services"
+    industry: "Home services"
+    enabled: true
+    verified: true
+
+  # ── Aesthetics / medspa / healthcare ─────────────────────────────────────
+  - name: "American Spa"
+    url: "https://www.americanspa.com/rss.xml"
+    category: "Aesthetics"
+    industry: "Aesthetics & medspa"
+    enabled: true
+    verified: true
+  # Disabled: returns HTTP 403 to this client. Not worked around.
+  - name: "Dermatology Times"
+    url: "https://www.dermatologytimes.com/rss"
+    category: "Aesthetics"
+    industry: "Aesthetics & medspa"
+    enabled: false
+    verified: false
+  - name: "Plastic Surgery Practice"
+    url: "https://plasticsurgerypractice.com/feed/"
+    category: "Aesthetics"
+    industry: "Aesthetics & medspa"
+    enabled: true
+    verified: true
+  - name: "Beauty Independent"
+    url: "https://www.beautyindependent.com/feed/"
+    category: "Aesthetics"
+    industry: "Aesthetics & medspa"
+    enabled: true
+    verified: true
+
+  # ── Retail / customer experience ─────────────────────────────────────────
+  - name: "CX Today"
+    url: "https://www.cxtoday.com/feed/"
+    category: "Customer experience"
+    industry: "Cross-industry"
+    enabled: true
+    verified: true
+  - name: "Retail Dive"
+    url: "https://www.retaildive.com/feeds/news/"
+    category: "Customer experience"
+    industry: "Retail"
+    enabled: true
+    verified: true
+  - name: "Modern Retail"
+    url: "https://www.modernretail.co/feed/"
+    category: "Customer experience"
+    industry: "Retail"
+    enabled: true
+    verified: true
+
+  # ── Competitor & adjacent-company public blogs ───────────────────────────
+  # Vendor marketing. Automatically flagged `is_promotional_source`, which
+  # lowers evidence strength and raises the risk score. Kept because
+  # competitor positioning is itself a signal worth tracking.
+  - name: "Birdeye — blog (competitor)"
+    url: "https://birdeye.com/blog/feed/"
+    category: "Local business"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true
+  - name: "Weave — blog (competitor)"
+    url: "https://www.getweave.com/feed/"
+    category: "Customer follow-up"
+    industry: "Healthcare"
+    enabled: true
+    verified: true
+  - name: "Thryv — blog (competitor)"
+    url: "https://www.thryv.com/blog/feed/"
+    category: "Local business"
+    industry: "Local business (general)"
+    enabled: true
+    verified: true

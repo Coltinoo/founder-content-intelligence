@@ -8,7 +8,7 @@ import streamlit as st
 from fcie.db import init_db
 from fcie.pipeline.engagement import build_watchlist, set_review_status
 from fcie.queries import watchlist_items
-from fcie.ui.components import empty_state, format_date, header, page_setup, sidebar_status
+from fcie.ui.components import admin, empty_state, format_date, header, page_setup, sidebar_status
 
 page_setup("Engagement Watchlist", "👁")
 init_db()
@@ -30,7 +30,7 @@ status_filter = col1.multiselect(
 )
 priority_filter = col2.multiselect("Priority", ["high", "medium", "low"],
                                    default=["high", "medium", "low"])
-if col3.button("↻ Rebuild watchlist"):
+if admin() and col3.button("↻ Rebuild watchlist"):
     with st.spinner("Scanning recent high-relevance sources…"):
         report = build_watchlist()
     st.success(f"{report.created} item(s) added, {report.skipped} already present "
@@ -88,15 +88,15 @@ for item in items:
             st.caption(f"⚠️ {item['risk_notes']}")
 
         a1, a2, a3, _ = st.columns([1, 1, 1, 3])
-        if a1.button("Mark reviewed", key=f"rev_{item['id']}"):
+        if admin() and a1.button("Mark reviewed", key=f"rev_{item['id']}"):
             set_review_status(item["id"], "reviewed")
             st.cache_data.clear()
             st.rerun()
-        if a2.button("Dismiss", key=f"dis_{item['id']}"):
+        if admin() and a2.button("Dismiss", key=f"dis_{item['id']}"):
             set_review_status(item["id"], "dismissed")
             st.cache_data.clear()
             st.rerun()
-        if a3.button("A human acted", key=f"act_{item['id']}"):
+        if admin() and a3.button("A human acted", key=f"act_{item['id']}"):
             set_review_status(item["id"], "actioned_by_human")
             st.cache_data.clear()
             st.rerun()

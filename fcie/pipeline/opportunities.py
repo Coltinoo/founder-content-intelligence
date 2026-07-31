@@ -24,7 +24,12 @@ from ..ai.taxonomy import THEMES, contains_phrase
 from ..config import load_config
 from ..db import session_scope
 from ..models import ContentOpportunity, ExtractedSignal, Source, Theme
-from ..utils.format import count_label, industry_phrase, truncate_words
+from ..utils.format import (
+    count_label,
+    growth_phrase,
+    industry_phrase,
+    truncate_words,
+)
 from ..utils.text import truncate
 from .scoring import compute_confidence, compute_opportunity_score, compute_risk_score
 

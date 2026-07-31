@@ -211,6 +211,27 @@ class PipelineConfig:
     max_opportunities_per_run: int = 12
 
 
+def is_admin() -> bool:
+    """True when write controls may be shown.
+
+    **Fail-safe by design: read-only unless `FCIE_ADMIN=1` is explicitly set.**
+    The public demo and the operator's laptop run the same code, so the default
+    has to be the safe one — a deployment that forgets to configure anything
+    must not expose Delete, Reprocess or Approve to anonymous visitors. Turning
+    writes *on* is a deliberate act; leaving them off is the accident-proof path.
+    """
+    return _env_bool("FCIE_ADMIN", False)
+
+
+def read_only_notice() -> str:
+    return (
+        "Read-only demo. Controls that would change stored data — running "
+        "discovery, regenerating briefs, approving drafts, editing settings — "
+        "are hidden here. The full version has them; this deployment is a "
+        "public showcase."
+    )
+
+
 @dataclass
 class AppConfig:
     crawl: CrawlConfig = field(default_factory=CrawlConfig)

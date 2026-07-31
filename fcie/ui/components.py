@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from .. import DISCLAIMER, __version__
-from ..config import load_config
+from ..config import is_admin, load_config, read_only_notice
 from ..db import describe_backend
 from ..utils.format import (
     count_label,
@@ -137,6 +137,30 @@ STATUS_LABELS = {
 }
 
 
+def admin() -> bool:
+    """Whether write controls should render. See ``config.is_admin``."""
+    return is_admin()
+
+
+def admin_only(render, *, note: str | None = None):
+    """Render a mutating control only for an admin.
+
+    Every Delete / Reprocess / Approve / Update-status control routes through
+    this, so "is this safe to expose publicly?" has exactly one answer in one
+    place rather than being re-decided at each call site.
+    """
+    if admin():
+        return render()
+    if note:
+        st.caption(f"🔒 {note}")
+    return None
+
+
+def read_only_banner() -> None:
+    if not admin():
+        st.caption(f"🔒 {read_only_notice()}")
+
+
 def page_setup(title: str, icon: str = "◆") -> None:
     st.set_page_config(page_title=f"{title} · FCIE", page_icon=icon, layout="wide")
     st.markdown(BASE_CSS, unsafe_allow_html=True)
@@ -161,46 +185,25 @@ _STATUS_SHORT = {
 
 
 def sidebar_status() -> None:
-    cfg = load_config()
+    """Sidebar for a reader, not an operator.
+
+    This used to carry the Supabase hostname, a "4/6 live" connection tally,
+    per-integration fallback notes, environment-variable instructions and a
+    repo path. None of that answers the executive's question — *what should I
+    look at today, why does it matter, what could I say?* — and all of it
+    competes with the answer. The technical detail now lives on Settings, one
+    click away, for whoever asks how it was built.
+    """
     with st.sidebar:
         st.markdown("### Founder Content Intelligence")
-        st.caption(f"v{__version__} · independent prototype")
-
-        rows = cfg.integration_status()
-        ready = sum(1 for r in rows if r["ready"] == "yes")
-        st.markdown(
-            f"<div style='margin:.6rem 0 .3rem'>"
-            f"<span class='fcie-muted'>Connections · {ready}/{len(rows)} live</span></div>",
-            unsafe_allow_html=True,
-        )
-        # One line per integration: name left, state right. Six paragraphs of
-        # bold headings and captions was more text than signal.
-        html = []
-        for row in rows:
-            icon = {"yes": "🟢", "fallback": "🟡", "no": "⚪"}.get(row["ready"], "⚪")
-            name = _STATUS_SHORT.get(row["integration"], row["integration"])
-            html.append(
-                f"<div class='fcie-status'><span>{icon} {name}</span>"
-                f"<span>{row['status']}</span></div>"
-            )
-        st.markdown("".join(html), unsafe_allow_html=True)
-
-        with st.expander("What do these mean?"):
-            for row in rows:
-                st.markdown(
-                    f"**{_STATUS_SHORT.get(row['integration'], row['integration'])}** — "
-                    f"{row['detail']}"
-                )
+        st.caption("Public signals → evidence-linked founder content")
         st.divider()
-        st.caption(describe_backend())
         st.caption(
-            "Nothing is published automatically. Every draft requires human approval."
+            "**Nothing is published automatically.** Every draft needs a human "
+            "decision."
         )
-        st.caption(
-            "Work sample for [Founder's Associate, Office of the CEO]"
-            "(https://job-boards.greenhouse.io/podium81/jobs/7967715) — "
-            "role mapping in `docs/ROLE_MAPPING.md`."
-        )
+        if not is_admin():
+            st.caption("🔒 Read-only demo")
 
 
 def risk_band(score) -> str:
@@ -385,6 +388,11 @@ def run_pipeline_widget(key_prefix: str = "run") -> None:
     from ..pipeline.run import run_full_pipeline
 
     cfg = load_config()
+    if not admin():
+        # A public visitor must not be able to start a crawl against third-party
+        # sites from someone else's deployment, nor rewrite the demo database.
+        st.caption(f"🔒 {read_only_notice()}")
+        return
     with st.expander("▶︎ Run discovery", expanded=False):
         st.caption(
             "Fetches public sources, extracts structured signals, recomputes themes and "

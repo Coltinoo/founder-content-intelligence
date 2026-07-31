@@ -1222,3 +1222,55 @@ class TestWatchlist:
             item = session.scalar(select(EngagementWatchlistItem))
             assert item.review_status == "unreviewed"
             assert "Do not automate" in item.risk_notes
+
+
+class TestPublicDemoIsReadOnly:
+    """The public deployment must not expose controls that change stored data.
+
+    Anyone can open the demo URL. Delete, Reprocess, Approve, Update-status and
+    Run-discovery all mutate a shared database — and Run-discovery additionally
+    sends traffic to third-party sites from the operator's deployment.
+    """
+
+    def test_read_only_is_the_default(self, monkeypatch):
+        from fcie.config import is_admin, load_config
+
+        monkeypatch.delenv("FCIE_ADMIN", raising=False)
+        load_config.cache_clear()
+        assert is_admin() is False, (
+            "a deployment that configures nothing must be read-only, not open"
+        )
+
+    def test_admin_requires_explicit_opt_in(self, monkeypatch):
+        from fcie.config import is_admin, load_config
+
+        for value, expected in (("1", True), ("true", True), ("0", False), ("", False)):
+            monkeypatch.setenv("FCIE_ADMIN", value)
+            load_config.cache_clear()
+            assert is_admin() is expected, value
+        monkeypatch.delenv("FCIE_ADMIN", raising=False)
+        load_config.cache_clear()
+
+    def test_every_mutating_control_is_gated(self):
+        """Static check: each write control sits behind an admin() guard.
+
+        Cheaper and more reliable than driving nine pages through AppTest, and
+        it fails loudly if someone adds an ungated button later.
+        """
+        import pathlib
+        import re
+
+        mutating = re.compile(
+            r'(st\.button|col\d\.button|a\d\.button|st\.form_submit_button)\(\s*["\']'
+            r'(Delete|Approve|Unapprove|Re-analyse|Reprocess|Update status|'
+            r'Rebuild watchlist|Recompute trends|Generate briefs|Generate draft|'
+            r'Save |Verify all feeds|Run discovery|Regenerate|Mark reviewed|'
+            r'Dismiss|A human acted|✓ Approve|✕ Reject|↻ )',
+            re.IGNORECASE,
+        )
+        offenders = []
+        for path in [pathlib.Path("streamlit_app.py"), *sorted(pathlib.Path("pages").glob("*.py"))]:
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if mutating.search(line) and "admin()" not in line:
+                    offenders.append(f"{path.name}:{number}: {line.strip()[:80]}")
+        assert not offenders, "ungated mutating controls:\n" + "\n".join(offenders)

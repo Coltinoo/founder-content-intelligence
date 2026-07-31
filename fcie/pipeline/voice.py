@@ -28,6 +28,24 @@ from ..utils.text import sentences, word_count
 
 log = logging.getLogger(__name__)
 
+# Provenance matters more than volume here. A company blog post and a founder's
+# own LinkedIn post are both "public text", but only one is evidence of how the
+# founder writes. Company SEO content is written by a marketing team to rank in
+# search — treating it as founder voice would be the same category of error the
+# rest of this system exists to prevent.
+FOUNDER_CONTENT_TYPES = {
+    "linkedin_post", "interview", "podcast", "press_quote", "keynote",
+    "earnings_or_investor_comment",
+}
+COMPANY_CONTENT_TYPES = {"company_public_content", "blog_post", "other"}
+
+
+def classify_provenance(content_type: str | None) -> str:
+    """``verified_founder`` | ``company_editorial``."""
+    return ("verified_founder" if (content_type or "") in FOUNDER_CONTENT_TYPES
+            else "company_editorial")
+
+
 DEFAULT_ASSUMPTIONS = [
     "Direct",
     "Clear",
@@ -57,13 +75,32 @@ _STORY_MARKERS = ("a customer", "one of our customers", "a dealership", "a shop 
                   "i met", "a client")
 
 
+def _split_paragraphs(text: str) -> list[str]:
+    """Split into paragraphs, tolerating text that lost its blank lines.
+
+    Article extraction often returns block-per-line rather than blank-line
+    separated prose. Splitting only on blank lines then treats a whole 18,000-
+    character article as ONE paragraph, and the voice guide reported "median
+    123 sentences per paragraph" — a number that is arithmetically true and
+    completely misleading, which is worse than no number at all.
+
+    So: prefer blank-line structure when it exists; fall back to single
+    newlines when it plainly does not.
+    """
+    blocks = [p.strip() for p in re.split(r"\n\s*\n", text or "") if p.strip()]
+    if len(blocks) > 1:
+        return blocks
+    lines = [line.strip() for line in (text or "").split("\n") if line.strip()]
+    return lines if len(lines) > 1 else blocks
+
+
 def analyse_example(text: str, *, title: str | None = None) -> dict:
     """Measure one example. Every figure here is countable from the text."""
     text = (text or "").strip()
     if not text:
         return {"error": "empty text"}
 
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    paragraphs = _split_paragraphs(text)
     sents = sentences(text)
     sentence_lengths = [len(s.split()) for s in sents] or [0]
     paragraph_sentence_counts = [max(len(sentences(p)), 1) for p in paragraphs] or [1]
@@ -275,10 +312,35 @@ def build_voice_guide(*, use_llm: bool = False) -> dict:
             "The guide may not transfer to other formats."
         )
 
+    # What the library actually contains decides what it may claim to be.
+    founder_examples = [p for p in payloads
+                        if classify_provenance(p["content_type"]) == "verified_founder"]
+    company_examples = [p for p in payloads if p not in founder_examples]
+
+    if founder_examples:
+        label = (f"Founder voice alignment — {len(founder_examples)} verified founder "
+                 f"example(s), {len(company_examples)} company editorial")
+        provenance_warning = None if len(founder_examples) >= 5 else (
+            f"Only {len(founder_examples)} verified founder example(s). Patterns below are "
+            f"dominated by company editorial content and should be treated as a baseline, "
+            f"not as the founder's voice."
+        )
+    else:
+        label = "Podium Editorial Baseline — company content, not founder voice"
+        provenance_warning = (
+            "Every example in this library is company-published editorial or marketing "
+            "content. That is written by a marketing team to rank in search, and it is NOT "
+            "evidence of how the founder writes. Nothing here should be described as founder "
+            "voice until verified founder posts, interviews or transcripts are added."
+        )
+
     guide = {
         "approved_example_count": len(analyses),
+        "founder_example_count": len(founder_examples),
+        "company_example_count": len(company_examples),
+        "provenance_warning": provenance_warning,
         "status": "derived",
-        "label": "Founder voice alignment based on approved public examples",
+        "label": label,
         "disclaimer": (
             "This describes measurable patterns in manually-approved public text. It does not "
             "reproduce, imitate, or represent any individual's voice, and no output should be "

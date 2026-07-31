@@ -49,6 +49,22 @@ class TestNormalizeUrl:
         assert normalize_url(None) == ""
         assert normalize_url("   ") == ""
 
+    def test_paid_search_landing_variants_collapse(self):
+        """Search APIs return ad landing URLs; one page must not look like four."""
+        base = normalize_url("https://podium.com/")
+        for variant in (
+            "https://podium.com/?m_bt=0",
+            "https://podium.com/?device=c",
+            "https://podium.com/?gad_source=1&gbraid=abc",
+            "https://podium.com/?matchtype=b&network=g&creative=123",
+            "https://podium.com/?srsltid=xyz",
+        ):
+            assert normalize_url(variant) == base, variant
+
+    def test_meaningful_params_survive_the_ad_strip(self):
+        assert normalize_url("https://e.com/a?id=42&device=c") == "https://e.com/a?id=42"
+        assert "v=abc" in normalize_url("https://youtube.com/watch?v=abc&device=c")
+
     def test_same_article_via_different_queries_normalises_identically(self):
         a = "https://www.example.com/story?utm_source=google&utm_medium=cpc"
         b = "http://example.com/story/"

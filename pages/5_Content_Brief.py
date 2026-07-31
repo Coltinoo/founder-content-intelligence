@@ -14,7 +14,9 @@ from fcie.queries import (
     set_opportunity_status,
     update_checklist,
 )
+from fcie.config import read_only_notice
 from fcie.ui.components import (
+    admin,
     STATUS_LABELS,
     chip,
     chips,
@@ -159,7 +161,7 @@ with tabs[0]:
 
     with st.expander("Regenerate this brief"):
         force_heuristic = st.checkbox("Force heuristic builder", key="regen_heur")
-        if st.button("Regenerate", type="secondary"):
+        if admin() and st.button("Regenerate", type="secondary"):
             if theme:
                 with st.spinner("Rebuilding from the stored evidence…"):
                     report = generate_opportunities(
@@ -233,7 +235,7 @@ with tabs[3]:
             st.caption(f"↳ {item['why']}")
         updated.append({**item, "done": done})
 
-    if checklist and st.button("Save checklist"):
+    if admin() and checklist and st.button("Save checklist"):
         update_checklist(int(selected_id), updated)
         st.success("Checklist saved.")
         st.cache_data.clear()
@@ -252,7 +254,7 @@ with tabs[4]:
     content_type = col1.selectbox("Format", DRAFT_FORMATS,
                                   format_func=lambda f: FORMAT_LABELS.get(f, f))
     heuristic = col2.checkbox("Force heuristic writer", key="draft_heur")
-    if col3.button("Generate draft", type="primary"):
+    if admin() and col3.button("Generate draft", type="primary"):
         with st.spinner("Writing and auditing the draft…"):
             result = generate_draft(int(selected_id), content_type, force_heuristic=heuristic)
         if result.get("ok"):
@@ -326,26 +328,38 @@ with tabs[4]:
                 st.caption("Cited sources: " + ", ".join(f"#{i}" for i in draft["cited_source_ids"]))
 
             st.markdown("**Human decision**")
-            a1, a2, a3, a4 = st.columns([1, 1, 1, 2])
-            reviewer_note = a4.text_input("Reviewer note", key=f"note_{draft['id']}",
-                                          value=draft.get("reviewer_notes") or "")
-            if a1.button("✓ Approve", key=f"approve_{draft['id']}"):
-                set_approval(draft["id"], "approved", reviewer_note)
-                set_opportunity_status(int(selected_id), "approved", reviewer_note)
-                st.success("Approved for publication by a human. The system will not publish it.")
-                st.cache_data.clear()
-                st.rerun()
-            if a2.button("↻ Request changes", key=f"changes_{draft['id']}"):
-                set_approval(draft["id"], "changes_requested", reviewer_note)
-                set_opportunity_status(int(selected_id), "review", reviewer_note)
-                st.info("Marked as changes requested.")
-                st.cache_data.clear()
-                st.rerun()
-            if a3.button("✕ Reject", key=f"reject_{draft['id']}"):
-                set_approval(draft["id"], "rejected", reviewer_note)
-                st.warning("Rejected.")
-                st.cache_data.clear()
-                st.rerun()
+            if not admin():
+                # The approval gate is the product's whole point, so show what it
+                # looks like — just don't let an anonymous visitor pull the lever.
+                chips(
+                    chip("✓ Approve"), chip("↻ Request changes"), chip("✕ Reject"),
+                )
+                st.caption(
+                    "🔒 Approval controls are disabled in this public demo. In the "
+                    "full version a human clicks one of these; nothing is ever "
+                    "published automatically either way."
+                )
+            else:
+                a1, a2, a3, a4 = st.columns([1, 1, 1, 2])
+                reviewer_note = a4.text_input("Reviewer note", key=f"note_{draft['id']}",
+                                              value=draft.get("reviewer_notes") or "")
+                if admin() and a1.button("✓ Approve", key=f"approve_{draft['id']}"):
+                    set_approval(draft["id"], "approved", reviewer_note)
+                    set_opportunity_status(int(selected_id), "approved", reviewer_note)
+                    st.success("Approved for publication by a human. The system will not publish it.")
+                    st.cache_data.clear()
+                    st.rerun()
+                if admin() and a2.button("↻ Request changes", key=f"changes_{draft['id']}"):
+                    set_approval(draft["id"], "changes_requested", reviewer_note)
+                    set_opportunity_status(int(selected_id), "review", reviewer_note)
+                    st.info("Marked as changes requested.")
+                    st.cache_data.clear()
+                    st.rerun()
+                if admin() and a3.button("✕ Reject", key=f"reject_{draft['id']}"):
+                    set_approval(draft["id"], "rejected", reviewer_note)
+                    st.warning("Rejected.")
+                    st.cache_data.clear()
+                    st.rerun()
 
 st.divider()
 st.caption(

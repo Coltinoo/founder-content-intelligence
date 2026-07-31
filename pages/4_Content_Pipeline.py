@@ -9,7 +9,9 @@ from fcie.db import init_db
 from fcie.models import OPPORTUNITY_STATUSES
 from fcie.pipeline.opportunities import generate_opportunities
 from fcie.queries import opportunities_list, set_opportunity_status, themes_dataframe
+from fcie.config import read_only_notice
 from fcie.ui.components import (
+    admin,
     chip,
     chips,
     STATUS_LABELS,
@@ -43,7 +45,7 @@ def generation_panel() -> None:
         heuristic = col2.checkbox("Force heuristic builder", value=False)
         max_count = col3.number_input("Max briefs", 1, 30, 10)
 
-        if st.button("Generate briefs", type="primary"):
+        if admin() and st.button("Generate briefs", type="primary"):
             with st.spinner("Building evidence-backed briefs…"):
                 report = generate_opportunities(
                     theme_names=selected or None,
@@ -146,6 +148,8 @@ st.divider()
 
 # ── status control ──────────────────────────────────────────────────────────
 st.markdown("## Move an opportunity")
+if not admin():
+    st.caption("🔒 " + read_only_notice())
 col1, col2, col3 = st.columns([2, 1, 2])
 target_id = col1.selectbox(
     "Opportunity",
@@ -160,7 +164,7 @@ new_status = col2.selectbox(
 )
 notes = col3.text_input("Reviewer note (optional)")
 
-if st.button("Update status"):
+if admin() and st.button("Update status"):
     if set_opportunity_status(int(target_id), new_status, notes):
         st.success(f"Opportunity #{target_id} moved to {STATUS_LABELS[new_status]}.")
         st.cache_data.clear()
@@ -176,5 +180,6 @@ st.caption(f"Selected: **{current['title']}** — {risk_badge(current['risk'])} 
            f"built by {current['generation_method']}, created {format_date(current['created_at'])}.")
 
 st.divider()
-st.markdown("## Generate briefs")
-generation_panel()
+if admin():
+    st.markdown("## Generate briefs")
+    generation_panel()

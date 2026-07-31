@@ -10,7 +10,8 @@ from fcie.ai.prompts import PromptLibrary
 from fcie.config import load_config, reload_config, write_yaml
 from fcie.db import describe_backend, init_db
 from fcie.queries import recent_runs
-from fcie.ui.components import header, page_setup, sidebar_status
+from fcie.config import read_only_notice
+from fcie.ui.components import admin, header, page_setup, sidebar_status
 
 page_setup("Settings", "⚙")
 init_db()
@@ -26,6 +27,30 @@ tabs = st.tabs([
 
 # ── integrations ────────────────────────────────────────────────────────────
 with tabs[0]:
+    st.markdown("### How this deployment is wired")
+    st.caption(
+        "Moved here from the sidebar deliberately — an executive view should "
+        "answer what to look at and why, not which hostname the database is on."
+    )
+    rows = cfg.integration_status()
+    ready = sum(1 for r in rows if r["ready"] == "yes")
+    a1, a2, a3 = st.columns(3)
+    a1.metric("Connections live", f"{ready}/{len(rows)}")
+    a2.metric("Database", "Supabase" if cfg.credentials.uses_postgres else "SQLite")
+    a3.metric("Mode", "Admin" if admin() else "Read-only")
+    st.caption(describe_backend())
+    st.markdown(
+        "Work sample for [Founder's Associate, Office of the CEO]"
+        "(https://job-boards.greenhouse.io/podium81/jobs/7967715). "
+        "Role mapping: `docs/ROLE_MAPPING.md` · Architecture: `docs/ARCHITECTURE.md`."
+    )
+    if not admin():
+        st.info(
+            "This is the public read-only demo. Controls that change stored data — "
+            "running discovery, regenerating briefs, approving drafts, editing "
+            "settings — are hidden. Set `FCIE_ADMIN=1` to enable them."
+        )
+
     st.markdown("### Integration status")
     st.caption("Secrets are read from environment variables only — never from these YAML files.")
     frame = pd.DataFrame(cfg.integration_status())
@@ -69,7 +94,7 @@ with tabs[1]:
         },
         key="queries_editor",
     )
-    if st.button("Save queries"):
+    if admin() and st.button("Save queries"):
         payload = dict(cfg.queries)
         payload["queries"] = [
             {"query": r["query"], "category": r.get("category"), "enabled": bool(r.get("enabled", True))}
@@ -99,7 +124,7 @@ with tabs[2]:
         },
         key="feeds_editor",
     )
-    if st.button("Save feeds"):
+    if admin() and st.button("Save feeds"):
         payload = {"feeds": [
             {"name": r.get("name"), "url": r.get("url"), "category": r.get("category"),
              "industry": r.get("industry"), "enabled": bool(r.get("enabled", True))}
@@ -110,7 +135,7 @@ with tabs[2]:
         st.success(f"Saved {len(payload['feeds'])} feed(s) to config/feeds.yaml.")
         st.rerun()
 
-    if st.button("Verify all feeds now"):
+    if admin() and st.button("Verify all feeds now"):
         import feedparser
 
         rows = []
@@ -182,7 +207,7 @@ with tabs[3]:
     per_feed = d3.number_input("Items per feed", 1, 50, int(cfg.discovery.rss_items_per_feed))
     per_video = d4.number_input("Videos per query", 1, 30, int(cfg.discovery.youtube_results_per_query))
 
-    if st.button("Save crawl settings"):
+    if admin() and st.button("Save crawl settings"):
         sources_payload = dict(cfg.sources)
         sources_payload["allowed_domains"] = [d.strip() for d in allowed.splitlines() if d.strip()]
         sources_payload["blocked_domains"] = [d.strip() for d in blocked.splitlines() if d.strip()]
@@ -262,7 +287,7 @@ with tabs[4]:
     max_opps = p2.number_input("Max opportunities per run", 1, 50,
                                int(cfg.pipeline.max_opportunities_per_run))
 
-    if st.button("Save model & scoring"):
+    if admin() and st.button("Save model & scoring"):
         scoring_payload = dict(cfg.scoring)
         scoring_payload["weights"] = {
             "podium_relevance": w_podium, "founder_relevance": w_founder,
@@ -324,7 +349,7 @@ with tabs[5]:
 
     name = st.selectbox("Edit a prompt", PromptLibrary.names())
     body = st.text_area("Prompt body", PromptLibrary.read(name), height=460, key=f"prompt_{name}")
-    if st.button("Save prompt"):
+    if admin() and st.button("Save prompt"):
         PromptLibrary.write(name, body)
         st.success(f"Saved prompts/{name}.md")
 

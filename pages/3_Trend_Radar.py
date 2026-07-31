@@ -10,7 +10,9 @@ from fcie.config import load_config
 from fcie.db import init_db
 from fcie.pipeline.trends import get_theme_sources, run_trend_analysis
 from fcie.queries import themes_dataframe
+from fcie.utils.format import growth_phrase
 from fcie.ui.components import (
+    admin,
     empty_state,
     evidence_block,
     format_date,
@@ -34,7 +36,7 @@ col1.caption(
     f"{cfg.trends.min_sources_for_trend} source(s) across "
     f"{cfg.trends.min_domains_for_trend} distinct domain(s) before it is called a trend."
 )
-if col2.button("↻ Recompute trends"):
+if admin() and col2.button("↻ Recompute trends"):
     with st.spinner("Recomputing…"):
         report = run_trend_analysis()
     st.success(f"{report.themes_updated} theme(s) updated.")
@@ -141,8 +143,8 @@ m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Sources", int(theme_row["source_count"]))
 m2.metric("Distinct domains", int(theme_row["domains"]))
 m3.metric("Industries", int(theme_row["industries"]))
-m4.metric("This vs last period", f"{int(theme_row['current_period'])} / {int(theme_row['previous_period'])}",
-          f"{theme_row['growth_rate']:+.0%}")
+m4.metric("This period", int(theme_row["current_period"]))
+m4.caption(growth_phrase(theme_row["current_period"], theme_row["previous_period"]))
 m5.metric("Days since newest", f"{theme_row['recency_days']:.0f}" if pd.notna(theme_row["recency_days"]) else "—")
 
 s1, s2, s3, s4 = st.columns(4)

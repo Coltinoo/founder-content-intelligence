@@ -35,15 +35,62 @@ class EngagementReport:
     created: int = 0
     skipped: int = 0
     errors: list[str] = field(default_factory=list)
+    rejected: list[str] = field(default_factory=list)
     backend: str = "heuristic-v1"
 
     def as_dict(self) -> dict:
         return {"created": self.created, "skipped": self.skipped,
+                "rejected": len(self.rejected),
                 "errors": self.errors[:20], "backend": self.backend}
 
 
-def build_watchlist(*, limit: int = 20, lookback_days: int | None = None,
+# Pages that are not conversations. A watchlist is a list of *people and
+# discussions worth joining*; a job posting, a pricing page or the company's own
+# site is none of those. Twenty-four loosely-related rows are worse than five
+# real ones, because the reader stops trusting the queue.
+_NEVER_ENGAGE_DOMAINS = {
+    "podium.com", "job-boards.greenhouse.io", "boards.greenhouse.io",
+    "lever.co", "workday.com", "myworkdayjobs.com", "indeed.com",
+    "glassdoor.com", "ziprecruiter.com", "linkedin.com",
+}
+_NEVER_ENGAGE_PATH_MARKERS = (
+    "/jobs/", "/job/", "/careers", "/pricing", "/legal", "/privacy", "/terms",
+    "/login", "/signup", "/demo", "/product/", "/solutions/", "/integrations",
+    "/press-kit", "/newsroom",
+)
+# Minimum relevance for a conversation to be worth a founder's limited attention.
+_MIN_ENGAGEMENT_RELEVANCE = 6.0
+
+
+def _not_an_engagement_target(source: Source, signal: ExtractedSignal) -> str | None:
+    """Return a reason to exclude, or None if this is a genuine conversation."""
+    domain = (source.source_domain or "").lower()
+    url = (source.canonical_url or "").lower()
+
+    for blocked in _NEVER_ENGAGE_DOMAINS:
+        if domain == blocked or domain.endswith("." + blocked):
+            return f"{blocked} is a company/job-board domain, not a conversation"
+    if domain.endswith(".podium.com"):
+        return "Podium's own property"
+    if any(marker in url for marker in _NEVER_ENGAGE_PATH_MARKERS):
+        return "job listing, pricing or product page rather than a discussion"
+    if signal.is_promotional_source:
+        return "vendor marketing — engaging reads as a vendor spat"
+    if (signal.podium_relevance or 0) < _MIN_ENGAGEMENT_RELEVANCE:
+        return (f"relevance {signal.podium_relevance or 0:.0f}/10 is below the "
+                f"{_MIN_ENGAGEMENT_RELEVANCE:.0f} bar for engagement")
+    if not (source.author or "").strip() and not source.published_at:
+        return "no named author and no publication date — not attributable to anyone"
+    return None
+
+
+def build_watchlist(*, limit: int = 6, lookback_days: int | None = None,
                     force_heuristic: bool = False) -> EngagementReport:
+    """Build a short queue of genuine conversations.
+
+    The cap is deliberately small. Five relevant items a founder's associate
+    actually works through beats twenty-four they scroll past.
+    """
     cfg = load_config()
     report = EngagementReport()
     lookback = lookback_days or cfg.discovery.lookback_days
@@ -68,14 +115,24 @@ def build_watchlist(*, limit: int = 20, lookback_days: int | None = None,
             effective = source.published_at or source.discovered_at
             if effective and effective < cutoff:
                 continue
-            # First-party Podium pages are not "conversations to engage with".
-            if source.source_domain == "podium.com":
+            rejection = _not_an_engagement_target(source, signal)
+            if rejection:
+                report.rejected.append(f"{source.source_domain}: {rejection}")
                 continue
             candidates.append({
                 "source": source, "signal": signal,
                 "is_rising": (signal.primary_theme in rising)
                              or bool(rising & set(signal.secondary_themes or [])),
             })
+
+        # Rank by how much of a real conversation this is, not just by score.
+        candidates.sort(
+            key=lambda c: (
+                not c["is_rising"],
+                not bool(c["source"].author),          # a named author beats a page
+                -(c["signal"].podium_relevance or 0),
+            )
+        )
 
         client = AIClient()
         use_llm = client.available and not force_heuristic

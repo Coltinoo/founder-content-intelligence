@@ -106,6 +106,26 @@ def relative_time(value: datetime | None) -> str:
     return f"{count_label(days // 365, 'year')} ago"
 
 
+def growth_phrase(current: int, previous: int) -> str:
+    """Describe period-over-period change without inventing a percentage.
+
+    Dividing by a previous period of zero produces "+1800%", which reads as
+    explosive growth when the honest statement is "there was nothing to compare
+    against". A percentage is only meaningful when there is a real baseline.
+    """
+    current, previous = int(current or 0), int(previous or 0)
+    if previous == 0:
+        if current == 0:
+            return "no activity in either period"
+        return f"new this period — {count_label(current, 'source')}, none previously"
+    if current == previous:
+        return f"flat at {count_label(current, 'source')}"
+    change = (current - previous) / previous
+    direction = "up" if change > 0 else "down"
+    return (f"{direction} {abs(change):.0%} — {current} this period "
+            f"vs {previous} last")
+
+
 def truncate_words(text: str | None, limit: int) -> str:
     words = (text or "").split()
     if len(words) <= limit:

@@ -133,6 +133,19 @@ python scripts/verify_feeds.py --disable-broken
 | Google Programmable Search | `GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX` |
 | OpenAI Responses `web_search` | `OPENAI_API_KEY` + `FCIE_OPENAI_WEB_SEARCH=1` |
 
+The deployed instance uses the **OpenAI hosted `web_search` tool**, which needs
+no search vendor beyond the OpenAI key already configured for extraction. The
+model is instructed to return only URLs the tool actually returned and never to
+invent one; results are then fetched, deduplicated and extracted through the
+same path as every other source, so a hallucinated URL would simply fail to
+fetch and be recorded as an error rather than entering the corpus.
+
+> **URL hygiene matters more here than elsewhere.** Search APIs return *ad
+> landing* URLs, so one page comes back as `?device=c`, `?m_bt=0`,
+> `?gad_source=1`… Without stripping those, a single page counts as four
+> distinct sources and inflates every downstream statistic. `TRACKING_PARAMS`
+> covers 45+ tracking and paid-search parameters for exactly this reason.
+
 **Search-engine result pages are never scraped.** All five paths are lawful APIs.
 Results are filtered against the blocklist before storage.
 

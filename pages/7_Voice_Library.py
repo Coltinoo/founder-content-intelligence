@@ -10,7 +10,8 @@ import streamlit as st
 from fcie.db import init_db
 from fcie.pipeline.voice import add_voice_example, analyse_and_store, build_voice_guide
 from fcie.queries import delete_voice_example, set_voice_approval, voice_examples
-from fcie.ui.components import empty_state, format_date, header, page_setup, sidebar_status
+from fcie.config import read_only_notice
+from fcie.ui.components import admin, empty_state, format_date, header, page_setup, sidebar_status
 
 page_setup("Voice Library", "🗣")
 init_db()
@@ -34,7 +35,8 @@ CONTENT_TYPES = ["linkedin_post", "interview", "podcast", "press_quote", "keynot
                  "blog_post", "earnings_or_investor_comment", "other"]
 
 # ── add ─────────────────────────────────────────────────────────────────────
-with st.expander("➕ Add an approved public example", expanded=False):
+if admin():
+  with st.expander("➕ Add an approved public example", expanded=False):
     with st.form("add_voice"):
         c1, c2 = st.columns(2)
         title = c1.text_input("Title / description *")
@@ -111,20 +113,20 @@ with tab_examples:
 
             with actions:
                 if example["approved"]:
-                    if st.button("Unapprove", key=f"unap_{example['id']}"):
+                    if admin() and st.button("Unapprove", key=f"unap_{example['id']}"):
                         set_voice_approval(example["id"], False)
                         st.cache_data.clear()
                         st.rerun()
                 else:
-                    if st.button("Approve", key=f"ap_{example['id']}"):
+                    if admin() and st.button("Approve", key=f"ap_{example['id']}"):
                         set_voice_approval(example["id"], True)
                         st.cache_data.clear()
                         st.rerun()
-                if st.button("Re-analyse", key=f"re_{example['id']}"):
+                if admin() and st.button("Re-analyse", key=f"re_{example['id']}"):
                     analyse_and_store(example["id"])
                     st.cache_data.clear()
                     st.rerun()
-                if st.button("Delete", key=f"del_{example['id']}"):
+                if admin() and st.button("Delete", key=f"del_{example['id']}"):
                     delete_voice_example(example["id"])
                     st.cache_data.clear()
                     st.rerun()
@@ -158,8 +160,27 @@ with tab_guide:
 
     st.markdown(f"### {guide['label']}")
     st.caption(guide["disclaimer"])
+
+    # Provenance before patterns: what this library *is* determines what any
+    # conclusion below is worth.
+    if guide.get("provenance_warning"):
+        st.error(guide["provenance_warning"])
+    p1, p2 = st.columns(2)
+    p1.metric("Verified founder examples", guide.get("founder_example_count", 0))
+    p1.caption("Posts, interviews, transcripts, quotes attributable to the founder")
+    p2.metric("Company editorial", guide.get("company_example_count", 0))
+    p2.caption("Company-published articles and marketing content")
+
     if guide.get("coverage_warning"):
         st.warning(guide["coverage_warning"])
+
+    st.markdown(
+        "**How to read this page.** Three tiers, deliberately separated: "
+        "*company editorial patterns* (what the company publishes), "
+        "*verified founder patterns* (what the founder actually writes), and "
+        "*proposed style rules* — which remain proposals until validated against "
+        "verified founder examples."
+    )
 
     g1, g2, g3, g4 = st.columns(4)
     g1.metric("Approved examples", guide["approved_example_count"])

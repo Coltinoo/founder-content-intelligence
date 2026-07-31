@@ -13,7 +13,11 @@ from fcie.pipeline.extract import run_extraction
 from fcie.pipeline.ingest import ingest_manual_item
 from fcie.queries import filter_options, source_detail, sources_dataframe
 from fcie.utils.format import count_label, humanize_label, relative_time
+
+
+from fcie.config import read_only_notice
 from fcie.ui.components import (
+    admin,
     empty_state,
     evidence_block,
     format_date,
@@ -35,7 +39,11 @@ header("Source Library", "Every collected source, its extracted evidence, and it
 options = filter_options()
 
 # ── manual entry ────────────────────────────────────────────────────────────
-with st.expander("➕ Add a source manually (public content only)"):
+if not admin():
+    st.caption("🔒 " + read_only_notice())
+
+if admin():
+  with st.expander("➕ Add a source manually (public content only)"):
     st.caption(
         "The lawful route for anything that cannot be collected automatically: public "
         "LinkedIn post text you have copied, interview transcripts, meeting notes, or "
@@ -200,7 +208,7 @@ with c2:
         st.markdown(f"Risk: {risk_badge(signal['risk_score'])}")
         st.markdown(method_chip(signal["extraction_method"], signal.get("extraction_model")), unsafe_allow_html=True)
         st.caption(f"Model: {signal['extraction_model']}")
-    if st.button("↻ Reprocess this source"):
+    if admin() and st.button("↻ Reprocess this source"):
         with st.spinner("Re-running extraction…"):
             report = run_extraction(source_ids=[int(source_id)])
         st.success(f"Reprocessed with the {report.backend} backend.")

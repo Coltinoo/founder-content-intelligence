@@ -17,6 +17,14 @@ TRACKING_PARAMS = {
     "igshid", "ref", "ref_src", "referrer", "source", "spm", "yclid",
     "_hsenc", "_hsmi", "hsCtaTracking", "vero_id", "wickedid", "sc_cid",
     "campaign_id", "ad_id", "adgroupid", "cmpid", "amp", "at_medium",
+    # Paid-search / ad-platform parameters. Search APIs return the *ad* landing
+    # URL, so one page comes back as ?device=c, ?m_bt=0, ?gad_source=1 … and
+    # without these each variant looks like a distinct source.
+    "device", "m_bt", "matchtype", "network", "creative", "keyword",
+    "placement", "adposition", "gad_source", "gad_campaignid", "gbraid",
+    "wbraid", "srsltid", "mkt_tok", "trk", "trkCampaign", "sfmc_id",
+    "s_kwcid", "ef_id", "gclid_src", "li_fat_id", "twclid", "ttclid",
+    "epik", "irclickid", "rdt_cid",
 }
 
 # Query params that DO change identity and must be preserved.

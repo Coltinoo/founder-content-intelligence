@@ -1471,18 +1471,34 @@ class TestTextContrast:
                 f"below the {floor}:1 large-text floor"
             )
 
-    def test_the_ombre_never_carries_meaning_alone(self):
-        """Gradient text must stay readable if background-clip is unsupported."""
+    def test_the_ombre_stays_legible_without_background_clip(self):
+        """Gradient text must survive a renderer that cannot clip it.
+
+        A solid `color` underneath is not enough on its own: anything honouring
+        `-webkit-text-fill-color: transparent` without honouring
+        `background-clip: text` paints the glyphs transparent and the fallback
+        colour never wins. The transparent fill therefore has to live inside the
+        @supports block, so it only applies where clipping also works.
+        """
         import pathlib
         import re
 
         css = pathlib.Path("fcie/ui/components.py").read_text(encoding="utf-8")
-        block = re.search(r"\.fcie-ombre\s*\{(.*?)\}", css, re.S)
-        assert block, ".fcie-ombre rule not found"
-        assert "color:" in block.group(1), (
-            "the ombre needs a solid `color` fallback — without it, a renderer "
-            "that ignores background-clip:text paints the glyphs transparent"
+        base = re.search(r"\.fcie-ombre\s*\{([^}]*)\}", css)
+        assert base, ".fcie-ombre base rule not found"
+        assert re.search(r"\bcolor:\s*#[0-9A-Fa-f]{6}", base.group(1)), (
+            "the base .fcie-ombre rule needs a solid colour"
         )
+        assert "text-fill-color" not in base.group(1), (
+            "transparent text-fill must not be declared unconditionally"
+        )
+
+        guarded = re.search(
+            r"@supports[^{]*background-clip:\s*text[^{]*\{(.*?)\n  \}", css, re.S
+        )
+        assert guarded, "the gradient must be gated behind an @supports block"
+        assert "text-fill-color: transparent" in guarded.group(1)
+        assert "background-clip: text" in guarded.group(1)
 
     def test_palette_meets_wcag_aa(self):
         for label, foreground, background, floor in self.PAIRS:

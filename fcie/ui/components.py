@@ -81,14 +81,26 @@ BASE_CSS = """
   p, li {font-size: 1.02rem; line-height: 1.75; color: #1C1D18;}
   a {color: #AF4E30;}
 
-  /* The ombre. Decoration only — the text stays legible with the gradient
-     stripped, and no meaning is carried by colour alone. -webkit- prefixes are
-     required: Safari and Chrome both still need them for background-clip. */
-  .fcie-ombre {
-    background-image: linear-gradient(96deg, #4E6B70 12%, #5D6345 52%, #B08A4E 96%);
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: #4E6B70;
-    display: inline-block;
+  /* The ombre. Decoration only — no meaning is carried by colour alone.
+     -webkit- prefixes are required: Safari and Chrome both still need them for
+     background-clip.
+
+     The gradient is gated behind @supports rather than declared unconditionally
+     with a `color` fallback underneath it. A plain fallback does not actually
+     rescue anything: a renderer that honoured `-webkit-text-fill-color:
+     transparent` but not `background-clip: text` would paint the glyphs
+     transparent over an unclipped gradient box — invisible text, with the
+     fallback colour overridden by the fill. Inside @supports, the transparent
+     fill only ever applies where the clipping that makes it legible also
+     works; everywhere else the solid teal below is what renders. */
+  .fcie-ombre {color: #4E6B70; display: inline-block;}
+
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .fcie-ombre {
+      background-image: linear-gradient(96deg, #4E6B70 12%, #5D6345 52%, #B08A4E 96%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
   }
 
   .fcie-wordmark {

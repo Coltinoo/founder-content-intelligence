@@ -116,6 +116,16 @@ if featured_id:
                             unsafe_allow_html=True)
                 st.markdown(score_bar(opportunity["confidence_score"], "confidence"),
                             unsafe_allow_html=True)
+            # A low independent count is not a defect to hide — it is the
+            # system reporting that a narrative is carried mostly by vendors.
+            # Say so here, or the chip just reads as a bad number.
+            if len(independent) < 3:
+                st.caption(
+                    f"⚠️ Only {count_label(len(independent), 'independent publisher')} in "
+                    f"this cluster — the rest is vendor marketing. That is a real finding "
+                    f"about how this narrative is being carried, and it is why the risk "
+                    f"score is what it is. The brief lists it explicitly."
+                )
             st.caption(
                 "Open **Content Brief** for the full argument, every supporting point "
                 "with its verbatim source passage, the risk notes and the LinkedIn draft →"

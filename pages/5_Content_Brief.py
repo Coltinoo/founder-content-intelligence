@@ -65,8 +65,9 @@ selected_id = st.selectbox(
 )
 if selected_id == featured_id:
     st.caption(
-        "★ Best-evidenced brief in the library — most corroborating sources, most "
-        "independent publishers, and a draft already generated. Start here."
+        "★ The brief to start with — chosen for being squarely on Podium's market, "
+        "corroborated across the most publishers, carrying at least three evidenced "
+        "points, and already taken through to a draft. Not simply the highest score."
     )
 
 detail = opportunity_detail(int(selected_id))

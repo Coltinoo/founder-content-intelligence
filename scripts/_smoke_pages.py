@@ -11,7 +11,13 @@ import sys
 from streamlit.testing.v1 import AppTest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-pages = [ROOT / "streamlit_app.py", *sorted((ROOT / "pages").glob("*.py"))]
+# _pages_advanced/ is out of the navigation but still shipped. Render it too, or
+# it quietly rots until someone moves a file back into pages/ and it explodes.
+pages = [
+    ROOT / "streamlit_app.py",
+    *sorted((ROOT / "pages").glob("*.py")),
+    *sorted((ROOT / "_pages_advanced").glob("*.py")),
+]
 
 failures = 0
 for page in pages:

@@ -5,6 +5,7 @@ Run with:  streamlit run streamlit_app.py
 
 from __future__ import annotations
 
+import altair as alt
 import streamlit as st
 
 from fcie.config import load_config
@@ -23,6 +24,7 @@ from fcie.ui.components import (
     chip,
     empty_state,
     header,
+    how_it_works,
     page_setup,
     run_pipeline_widget,
     score_bar,
@@ -57,8 +59,6 @@ if counters["total_sources"] == 0:
     st.stop()
 
 # ── why this exists, before any numbers ─────────────────────────────────────
-# A first-time reader needs the problem stated before the machinery. One
-# sentence, set apart, doing the job a product page's opening line does.
 st.markdown(
     "<div class='fcie-pull'>A founder's most valuable asset is a point of view "
     "the market is ready to hear. Finding it means reading everything; publishing "
@@ -67,12 +67,31 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── the pipeline, as four numbers that mean something ───────────────────────
+# ── how it works, before what it found ──────────────────────────────────────
+# The page used to open on counts of "signals", "themes" and "opportunities" —
+# words that mean something specific here and nothing to a first-time reader.
+# State the process, then the results.
+st.markdown("## How it works")
+how_it_works([
+    ("Reads the public web",
+     "Podium's own pages, ~40 news feeds, and live web search. Public pages only — "
+     "never anything behind a login or paywall."),
+    ("Pulls out the facts",
+     "For each page: the problem it describes, the claims it makes, and the exact "
+     "sentences that back them up."),
+    ("Finds what's growing",
+     "Groups pages into topics and compares the last three weeks against the three "
+     "before. One publisher repeating itself is not a trend."),
+    ("Writes the brief",
+     "An argument you could publish, where every point sits next to the quote it "
+     "came from — and nothing goes out without you approving it."),
+])
+
 st.markdown("## What it found")
 st.markdown(
     f"<div class='fcie-hero-sub'>Reading <b>{counters['total_sources']}</b> public "
     f"pages from <b>{counters['distinct_domains']}</b> publishers, grouped into "
-    f"<b>{counters['themes']}</b> themes — <b>{counters['rising_themes']}</b> of them "
+    f"<b>{counters['themes']}</b> topics — <b>{counters['rising_themes']}</b> of them "
     f"gaining ground.</div>",
     unsafe_allow_html=True,
 )
@@ -80,13 +99,23 @@ st.markdown("<div style='height:1.1rem'></div>", unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Pages read", counters["total_sources"],
-          f"+{counters['sources_24h']} today" if counters["sources_24h"] else None)
+          f"+{counters['sources_24h']} today" if counters["sources_24h"] else None,
+          help="Public web pages collected and stored, across all publishers. "
+               "Every one is listed on the Source Library page with its original link.")
 c1.caption("Collected from the public web")
-c2.metric("Analysed", counters["extracted_signals"])
+c2.metric("Analysed", counters["extracted_signals"],
+          help="Pages the analyser could read properly and pull facts from. The gap "
+               "between this and 'Pages read' is pages with too little text to use — "
+               "they are kept and listed, not hidden.")
 c2.caption("Facts and quotes pulled out")
-c3.metric("Worth writing about", counters["opportunities"])
-c3.caption("Themes with real evidence behind them")
-c4.metric("Waiting on you", counters["drafts_pending"])
+c3.metric("Worth writing about", counters["opportunities"],
+          help="Topics with enough evidence behind them to argue a position. A topic "
+               "needs at least two sources from two different publishers before it "
+               "qualifies.")
+c3.caption("Topics with real evidence behind them")
+c4.metric("Waiting on you", counters["drafts_pending"],
+          help="Drafts written and waiting for a human to approve, edit or reject. "
+               "Nothing is ever published automatically.")
 c4.caption("Drafts needing a human decision")
 
 # ── the golden path: one worked example, front and centre ───────────────────
@@ -121,10 +150,19 @@ if featured_id:
         # Four facts, evenly spaced, each labelled in plain words. Previously
         # five chips ran together into one unreadable string.
         f1, f2, f3, f4 = st.columns(4)
-        f1.metric("Sources behind it", len(featured["sources"]))
-        f2.metric("Evidenced points", len(opportunity["supporting_points"]))
-        f3.metric("Drafts ready", len(featured["drafts"]))
-        f4.metric("Confidence", f"{opportunity['confidence_score']:.0f}/100")
+        f1.metric("Sources behind it", len(featured["sources"]),
+                  help="How many separate pages discuss this. More sources across more "
+                       "publishers means the idea is real and not one outlet's opinion.")
+        f2.metric("Points you can prove", len(opportunity["supporting_points"]),
+                  help="Arguments that have an exact quote from a real source attached. "
+                       "Points that could not be evidenced were dropped, not softened.")
+        f3.metric("Drafts ready", len(featured["drafts"]),
+                  help="Draft posts written from this idea, waiting for your review. "
+                       "Open the Daily Brief page to read them in full.")
+        f4.metric("Confidence", f"{opportunity['confidence_score']:.0f}/100",
+                  help="How well-supported this is — driven by how many independent "
+                       "publishers back it and how strong their evidence is. Higher is "
+                       "better. This is separate from publication risk.")
 
         # A low independent count is not a defect to hide — it is the system
         # reporting that a narrative is carried mostly by vendors.
@@ -139,8 +177,8 @@ if featured_id:
                 unsafe_allow_html=True,
             )
         st.caption(
-            "Open **Content Brief** for the full argument, every supporting point "
-            "with its verbatim source passage, the risk notes and the LinkedIn draft →"
+            "Open **Daily Brief** for the full argument, every supporting point with the "
+            "exact quote it came from, and the draft posts written from it →"
         )
 
 st.divider()
@@ -163,15 +201,15 @@ with left:
         signal_card(signal)
 
 with right:
-    st.markdown("## Themes gaining ground")
+    st.markdown("## Topics gaining ground")
     themes = themes_dataframe()
     if themes.empty:
-        empty_state("No themes computed yet.")
+        empty_state("No topics computed yet.")
     else:
         rising = themes[themes["trend_status"].isin(["rising", "emerging"])]
         if rising.empty:
             rising = themes.sort_values("source_count", ascending=False).head(5)
-            st.caption("No theme has met the rising threshold — showing highest-volume themes.")
+            st.caption("No topic has met the rising threshold — showing the highest-volume ones.")
         for _, theme in rising.head(4).iterrows():
             card(
                 title=theme["name"],
@@ -179,12 +217,11 @@ with right:
                       f"{count_label(int(theme['domains']), 'publisher')}"),
                 chip_html=chip(trend_badge(theme["trend_status"])),
             )
-        st.caption("Full detail on the Trend Radar page →")
 
-    st.markdown("## Also ready to write")
+    st.markdown("## More ideas ready to write")
     opportunities = opportunities_list()
     if not opportunities:
-        empty_state("No opportunities generated yet.")
+        empty_state("No content ideas generated yet.")
     # Exclude the one already featured above — repeating it here is the kind of
     # duplication that makes a page feel longer than it is.
     others = [o for o in opportunities if o["id"] != featured_id][:4]
@@ -196,7 +233,79 @@ with right:
             chip_html=score_bar(opportunity["score"], "opportunity"),
         )
     if others:
-        st.caption("Review and approve on the Content Pipeline page →")
+        st.caption("Read the full brief and its draft posts on **Daily Brief** →")
+
+st.divider()
+
+# ── the trend picture, moved here from its own page ─────────────────────────
+st.markdown("## Which topics are actually growing")
+st.markdown(
+    f"<div class='fcie-hero-sub'>Every topic, sized by how many sources discuss it. "
+    f"The last {cfg.trends.current_period_days} days compared with the "
+    f"{cfg.trends.previous_period_days} before. A topic needs at least "
+    f"{cfg.trends.min_sources_for_trend} sources across "
+    f"{cfg.trends.min_domains_for_trend} different publishers before it counts as a "
+    f"trend at all — one publisher repeating itself is not a trend.</div>",
+    unsafe_allow_html=True,
+)
+
+if themes.empty:
+    empty_state("No topics computed yet.")
+else:
+    chart_left, chart_right = st.columns(2, gap="large")
+    with chart_left:
+        st.markdown("#### How much is being written")
+        volume = themes.sort_values("source_count", ascending=False).head(12)
+        st.altair_chart(
+            alt.Chart(volume).mark_bar().encode(
+                y=alt.Y("name:N", sort="-x", title=None),
+                x=alt.X("source_count:Q", title="Sources discussing it"),
+                color=alt.Color("trend_status:N", title="Status",
+                                scale=alt.Scale(scheme="tableau10")),
+                tooltip=["name", "trend_status", "source_count", "domains",
+                         "avg_relevance", "avg_evidence"],
+            ).properties(height=min(32 * len(volume) + 40, 420)),
+            width="stretch",
+        )
+    with chart_right:
+        st.markdown("#### Where the good material is")
+        st.caption(
+            "Bubble size is how many sources back the topic. **Top-right is where "
+            "founder content should come from** — highly relevant to this market, "
+            "and well evidenced."
+        )
+        st.altair_chart(
+            alt.Chart(themes).mark_circle(opacity=0.75).encode(
+                x=alt.X("avg_relevance:Q", title="Relevance to this market (0-10)",
+                        scale=alt.Scale(domain=[0, 10])),
+                y=alt.Y("avg_evidence:Q", title="Strength of the evidence (0-10)",
+                        scale=alt.Scale(domain=[0, 10])),
+                size=alt.Size("source_count:Q", title="Sources"),
+                color=alt.Color("trend_status:N", title="Status",
+                                scale=alt.Scale(scheme="tableau10")),
+                tooltip=["name", "trend_status", "source_count", "domains",
+                         "avg_relevance", "avg_evidence", "growth_rate"],
+            ).properties(height=380),
+            width="stretch",
+        )
+
+    with st.expander("Every topic, with the numbers behind it"):
+        table = themes[[
+            "name", "trend_status", "source_count", "domains",
+            "current_period", "previous_period", "growth_rate",
+            "avg_relevance", "avg_evidence",
+        ]].rename(columns={
+            "name": "Topic", "trend_status": "Status", "source_count": "Sources",
+            "domains": "Publishers", "current_period": "This period",
+            "previous_period": "Previous", "growth_rate": "Change",
+            "avg_relevance": "Relevance", "avg_evidence": "Evidence",
+        })
+        st.dataframe(table, hide_index=True, width="stretch", height=380,
+                     column_config={"Change": st.column_config.NumberColumn(format="%+.0f%%")})
+        st.caption(
+            "`low_confidence` is not a gap — it is the system refusing to call "
+            "something a trend when it rests on one source from one publisher."
+        )
 
 st.divider()
 

@@ -1269,7 +1269,15 @@ class TestPublicDemoIsReadOnly:
             re.IGNORECASE,
         )
         offenders = []
-        for path in [pathlib.Path("streamlit_app.py"), *sorted(pathlib.Path("pages").glob("*.py"))]:
+        # _pages_advanced/ holds pages kept out of the navigation. They are still
+        # importable and still ship in the repo, so they are still scanned — a
+        # mutating control does not become safe by being one directory over.
+        page_files = [
+            pathlib.Path("streamlit_app.py"),
+            *sorted(pathlib.Path("pages").glob("*.py")),
+            *sorted(pathlib.Path("_pages_advanced").glob("*.py")),
+        ]
+        for path in page_files:
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 if mutating.search(line) and "admin()" not in line:
                     offenders.append(f"{path.name}:{number}: {line.strip()[:80]}")

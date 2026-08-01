@@ -146,8 +146,8 @@ def audit_draft(draft_text: str, evidence_passages: list[dict]) -> dict:
             )
             rows.append({
                 "sentence": sentence, "status": "supported",
-                "supporting_source_ids": [match["source_id"]] if match else [],
-                "supporting_passage": match["passage"] if match else None,
+                "supporting_source_ids": [match.get("source_id")] if match else [],
+                "supporting_passage": match.get("passage") if match else None,
                 "overlap": 1.0, "problem": None,
             })
             continue
@@ -178,16 +178,16 @@ def audit_draft(draft_text: str, evidence_passages: list[dict]) -> dict:
             supported += 1
             rows.append({
                 "sentence": sentence, "status": "supported",
-                "supporting_source_ids": [best_passage["source_id"]],
-                "supporting_passage": best_passage["passage"],
+                "supporting_source_ids": [best_passage.get("source_id")],
+                "supporting_passage": best_passage.get("passage"),
                 "overlap": round(best_overlap, 2), "problem": None,
             })
         elif best_overlap >= 0.35 and best_passage:
             partial += 1
             rows.append({
                 "sentence": sentence, "status": "partially_supported",
-                "supporting_source_ids": [best_passage["source_id"]],
-                "supporting_passage": best_passage["passage"],
+                "supporting_source_ids": [best_passage.get("source_id")],
+                "supporting_passage": best_passage.get("passage"),
                 "overlap": round(best_overlap, 2),
                 "problem": "Consistent with the evidence but not directly stated by it.",
             })

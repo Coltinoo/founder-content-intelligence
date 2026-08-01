@@ -74,6 +74,28 @@ BASE_CSS = """
     max-width: 44rem; margin: 0 0 0.4rem;
   }
 
+  /* "How it works" — four numbered steps, so a first-time visitor knows what
+     the app did before they are shown what it found. Without this the page
+     opened straight into counts of things nobody had defined yet. */
+  .fcie-steps {
+    display: flex; gap: 1.6rem; flex-wrap: wrap;
+    margin: 0.4rem 0 0.2rem; padding: 0;
+  }
+  .fcie-step {
+    flex: 1 1 12rem; min-width: 11rem;
+    border-top: 2px solid #E8E8ED; padding-top: 0.7rem;
+  }
+  .fcie-step__n {
+    display: inline-block; font-size: 0.72rem; font-weight: 700;
+    color: #4565B6; background: #E0E9FC; border-radius: 999px;
+    width: 1.35rem; height: 1.35rem; line-height: 1.35rem; text-align: center;
+    margin-bottom: 0.35rem;
+  }
+  .fcie-step__t {
+    font-size: 0.98rem; font-weight: 650; color: #18181C; margin-bottom: 0.2rem;
+  }
+  .fcie-step__d {font-size: 0.86rem; line-height: 1.6; color: #4A4A4D;}
+
   /* A single quiet fact, set apart. Used for the "why you need it" line. */
   .fcie-pull {
     border-top: 1px solid #E8E8ED; border-bottom: 1px solid #E8E8ED;
@@ -239,6 +261,25 @@ def read_only_banner() -> None:
 def page_setup(title: str, icon: str = "◆") -> None:
     st.set_page_config(page_title=f"{title} · FCIE", page_icon=icon, layout="wide")
     st.markdown(BASE_CSS, unsafe_allow_html=True)
+
+
+def how_it_works(steps: list[tuple[str, str]]) -> None:
+    """Numbered steps explaining what the page did before showing what it found.
+
+    Every page in this app reported counts of things — signals, themes,
+    opportunities — that are only meaningful once you know the pipeline that
+    produced them. A first-time reader had to infer the process from the
+    results. This states it.
+    """
+    cells = "".join(
+        f"<div class='fcie-step'>"
+        f"<span class='fcie-step__n'>{index}</span>"
+        f"<div class='fcie-step__t'>{title}</div>"
+        f"<div class='fcie-step__d'>{detail}</div>"
+        f"</div>"
+        for index, (title, detail) in enumerate(steps, start=1)
+    )
+    st.markdown(f"<div class='fcie-steps'>{cells}</div>", unsafe_allow_html=True)
 
 
 def header(title: str, subtitle: str = "") -> None:

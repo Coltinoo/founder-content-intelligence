@@ -1,0 +1,49 @@
+SAMPLE — SYNTHETIC TRANSCRIPT, WRITTEN FOR DEMONSTRATION
+This meeting never happened. The participants are invented. No real person said
+any of these words, and nothing here reflects any real company's plans, numbers,
+or customers. It exists so the meeting-notes agent can be demonstrated without
+using anyone's actual recording.
+
+Weekly GTM sync — 14 Jan, 09:00
+Present: Dana Whitlock (fictional, RevOps), Marcus Lee (fictional, Support),
+Priya Raman (fictional, Product)
+
+Dana: Let's start with the inbound numbers, because something odd is happening.
+Dana: Volume is flat month over month, but our close rate on inbound dropped from
+roughly a third to about a quarter.
+Marcus: That tracks with what my team sees. The leads are fine. We're just slower
+to them than we were in the autumn.
+Priya: Slower how? Are we talking hours?
+Marcus: Worse. Anything that comes in after four in the afternoon basically waits
+until the next morning. We have no evening coverage and we never really did.
+Dana: So the lead isn't lost because it was a bad lead. It's lost because nobody
+answered.
+Marcus: Right. And by the time we call back the next day, half of them have
+already booked with someone else.
+Priya: I want to be careful about the conclusion here. We're inferring the reason
+from the timing. Do we actually know they went elsewhere?
+Marcus: We don't know it for every one. We know it for the ones who tell us, and
+that's a decent number, but I couldn't put a percentage on it honestly.
+Dana: That's fair. Let's not put a number on it until we can back it up.
+Priya: This is the thing I keep coming back to. Every business we talk to thinks
+their problem is lead generation. It's almost never lead generation. It's that
+the leads they already paid for are sitting in a queue overnight.
+Dana: That's a good line, actually. That's the whole argument.
+Marcus: It's also just true. We are the example.
+Priya: We'll pilot evening coverage for two weeks and measure the close rate on
+after-hours inbound specifically. Not overall close rate — that'll wash out.
+Dana: I'll pull the after-hours cohort separately so we have a clean baseline
+before the pilot starts. I can have that by Friday.
+Priya: Marcus, can you get me the actual response times by hour of day? Not
+averages. I want the distribution.
+Marcus: I'll take that. Give me until Wednesday.
+Priya: One thing we should not talk about publicly yet is the pricing change
+we discussed last week. That's not decided and I don't want it in a post.
+Dana: Understood. And let's keep the specific customer names out of anything
+external until we've asked them.
+Priya: Agreed. The general pattern is fine to talk about. The named accounts
+aren't, and the numbers aren't until they're verified.
+Marcus: What about the autumn comparison? Is that shareable?
+Dana: Directionally yes, precisely no. I'd say "our close rate slipped" and stop
+there rather than quoting a figure we haven't audited.
+Priya: Good. Let's regroup Thursday once Marcus has the distribution.

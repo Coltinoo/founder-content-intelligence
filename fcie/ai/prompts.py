@@ -28,6 +28,7 @@ PROMPT_FILES = {
     "longform_outline": "longform_outline.md",
     "engagement_recommendation": "engagement_recommendation.md",
     "factcheck_review": "factcheck_review.md",
+    "meeting_notes": "meeting_notes.md",
 }
 
 

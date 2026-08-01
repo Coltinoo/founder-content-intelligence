@@ -953,11 +953,18 @@ class TestTopSignalsPresentation:
     def _seed(self, temp_db):
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         with temp_db.session_scope() as session:
-            # Five near-identical job ads from one board, plus two other outlets.
-            spec = ([("job-boards.greenhouse.io", f"AI Success Manager {i}", 9.0, 90 - i)
-                     for i in range(5)]
-                    + [("techcrunch.com", "Voice AI startup raises funding", 8.0, 80),
-                       ("achrnews.com", "Contractors report missed after-hours calls", 8.0, 75)])
+            # Five near-identical job ads from our own board — these are
+            # first-party AND not market intelligence, so they should vanish
+            # entirely rather than merely be capped.
+            spec = [("job-boards.greenhouse.io", f"AI Success Manager {i}", 9.0, 90 - i)
+                    for i in range(5)]
+            # Four near-identical posts from one *external* publisher — these are
+            # legitimate market content, so the per-publisher cap applies.
+            spec += [("vendorblog.com", f"Why speed to lead matters {i}", 8.5, 88 - i)
+                     for i in range(4)]
+            spec += [("techcrunch.com", "Voice AI startup raises funding", 8.0, 80),
+                     ("achrnews.com", "Contractors report missed after-hours calls", 8.0, 75),
+                     ("localbizjournal.com", "Owners say follow-up is the gap", 8.0, 72)]
             # Plus an irrelevant but recent, well-written article.
             spec.append(("hvacinsider.com", "New Model IV Indoor Ventilator", 1.0, 70))
             for index, (domain, title, relevance, score) in enumerate(spec):
@@ -978,9 +985,33 @@ class TestTopSignalsPresentation:
 
         self._seed(temp_db)
         signals = top_signals(limit=6)
-        boards = [s for s in signals if s["domain"] == "job-boards.greenhouse.io"]
-        assert len(boards) <= 2, "a single job board must not flood the front page"
+        vendor = [s for s in signals if s["domain"] == "vendorblog.com"]
+        assert len(vendor) <= 2, "a single publisher must not flood the front page"
         assert len({s["domain"] for s in signals}) >= 3, "the list should span publishers"
+
+    def test_our_own_pages_never_appear_as_market_signal(self, temp_db):
+        """"What the market is saying" must not mean "what we said".
+
+        Our own domains score highly on relevance for the obvious reason. A
+        Podium page was the top-scoring signal on the live dashboard, which made
+        the front page quietly report Podium's own marketing back as evidence.
+        """
+        from fcie.queries import top_signals
+
+        self._seed(temp_db)
+        signals = top_signals(limit=6)
+        assert not [s for s in signals if s["domain"] == "job-boards.greenhouse.io"]
+        assert not [s for s in signals if s["is_first_party"]]
+
+    def test_first_party_flag_is_exposed_for_the_ui(self, temp_db):
+        from fcie.queries import is_first_party, top_signals
+
+        self._seed(temp_db)
+        assert is_first_party("podium.com")
+        assert is_first_party("homeservices.podium.com"), "subdomains must match"
+        assert not is_first_party("techcrunch.com")
+        # Every row carries the flag so a source can be labelled wherever shown.
+        assert all("is_first_party" in s for s in top_signals(limit=6))
 
     def test_irrelevant_sources_are_gated_out(self, temp_db):
         from fcie.queries import top_signals

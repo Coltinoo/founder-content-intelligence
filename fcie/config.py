@@ -255,6 +255,11 @@ class AppConfig:
         return {d.lower().lstrip(".") for d in self.sources.get("blocked_domains", [])}
 
     @property
+    def first_party_domains(self) -> set[str]:
+        """Domains the company owns. See the note in config/sources.yaml."""
+        return {d.lower().lstrip(".") for d in self.sources.get("first_party_domains", [])}
+
+    @property
     def podium_sections(self) -> list[dict[str, Any]]:
         return self.sources.get("podium_sections", [])
 

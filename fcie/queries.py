@@ -7,6 +7,7 @@ access is testable on its own.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any
 
 import pandas as pd
@@ -158,6 +159,7 @@ def sources_dataframe(
             "quote_count": len(signal.notable_quotes or []) if signal else 0,
             "has_signal": signal is not None,
             "is_promotional": signal.is_promotional_source if signal else None,
+            "is_first_party": is_first_party(source.source_domain),
             "rediscovered": (source.metadata_json or {}).get("rediscovery_count", 0),
         }
         records.append(record)
@@ -279,6 +281,29 @@ _AGGREGATOR_DOMAINS = {
 }
 
 
+@lru_cache(maxsize=1)
+def _first_party_domains() -> frozenset[str]:
+    from .config import load_config
+
+    return frozenset(load_config().first_party_domains)
+
+
+def is_first_party(domain: str | None) -> bool:
+    """Whether a domain is one the company owns.
+
+    First-party content is our own voice, not evidence about the market. It is
+    worth keeping — knowing what has already been published stops you repeating
+    yourself — but it must never rank as "what the market is saying" or count as
+    independent corroboration. A Podium page was the top-scoring signal on the
+    dashboard, which meant the front page was partly reporting Podium's own
+    marketing back to Podium.
+
+    Subdomains match, so `podium.com` also covers homeservices.podium.com.
+    """
+    host = (domain or "").lower().lstrip(".")
+    return any(host == d or host.endswith("." + d) for d in _first_party_domains())
+
+
 def is_aggregator(domain: str | None) -> bool:
     host = (domain or "").lower()
     return any(host == a or host.endswith("." + a) for a in _AGGREGATOR_DOMAINS)
@@ -353,6 +378,13 @@ def top_signals(limit: int = 10, min_podium_relevance: float = 4.0) -> list[dict
     filtered = [r for r in rows if not is_aggregator(r[0].source_domain)]
     rows = filtered or rows
 
+    # Our own pages score highly on relevance for the obvious reason, and this
+    # panel answers "what is the *market* saying". A Podium page was the
+    # top-scoring signal here, which meant the front page was quietly reporting
+    # Podium's own marketing back to Podium as though it were evidence.
+    external = [r for r in rows if not is_first_party(r[0].source_domain)]
+    rows = external or rows
+
     # One publisher must not own the list. Podium's job board alone produced four
     # near-identical "AI Customer Success Manager" postings in the top six —
     # individually relevant, collectively useless as a view of the market.
@@ -366,6 +398,8 @@ def top_signals(limit: int = 10, min_podium_relevance: float = 4.0) -> list[dict
             "evidence_strength": sig.evidence_strength,
             "extraction_method": sig.extraction_method,
             "problem": sig.customer_problem,
+            "is_first_party": is_first_party(s.source_domain),
+            "is_promotional": sig.is_promotional_source,
         }
         for s, sig in rows
     ]
@@ -495,15 +529,22 @@ def featured_opportunity_id() -> int | None:
             # scores. Hard gate rather than a weight.
             if not source_ids or points < 3:
                 continue
-            domains = session.execute(
-                select(func.count(func.distinct(Source.source_domain)))
-                .where(Source.id.in_(source_ids))
-            ).scalar() or 0
+            # Corroboration means *other people* saying it. Our own pages are
+            # excluded from both counts: 14 of the 25 sources behind the
+            # previously featured brief were Podium's own, which made a
+            # vendor-heavy cluster look twice as corroborated as it was.
+            outside_domains = {
+                d for (d,) in session.execute(
+                    select(Source.source_domain).distinct().where(Source.id.in_(source_ids))
+                ).all() if d and not is_first_party(d)
+            }
+            domains = len(outside_domains)
             independent = session.execute(
                 select(func.count(Source.id))
                 .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
                 .where(Source.id.in_(source_ids))
                 .where(ExtractedSignal.is_promotional_source.is_(False))
+                .where(Source.source_domain.in_(outside_domains or [""]))
             ).scalar() or 0
             drafts = session.scalar(
                 select(func.count(ContentDraft.id))
@@ -556,6 +597,7 @@ def opportunity_detail(opportunity_id: int) -> dict | None:
                     "domain": s.source_domain, "published_at": s.published_at,
                     "source_type": s.source_type, "author": s.author,
                     "is_promotional": sig.is_promotional_source if sig else None,
+                    "is_first_party": is_first_party(s.source_domain),
                     "evidence_strength": sig.evidence_strength if sig else None,
                     "extraction_method": sig.extraction_method if sig else None,
                 }

@@ -12,6 +12,21 @@ allowed_domains:
   - www.podium.com
   - job-boards.greenhouse.io   # Podium's public job board only, via the seed below
 
+# Domains the company owns. Content from these is *our own voice*, not a market
+# signal — it is useful for knowing what we have already published and for the
+# editorial baseline, but it must never count as independent corroboration or
+# rank as "what the market is saying". Counting your own marketing as evidence
+# that the market agrees with you is how a content engine starts measuring its
+# own echo. Subdomains are matched automatically, so `podium.com` also covers
+# homeservices.podium.com and automotive.podium.com.
+first_party_domains:
+  - podium.com
+  # The job board is Podium's public careers listing. It is first-party *and*
+  # not market intelligence at all — a job posting says nothing about the
+  # market — so it is excluded from signals entirely rather than merely
+  # labelled.
+  - job-boards.greenhouse.io
+
 # Never fetched programmatically, regardless of the allowlist.
 # LinkedIn content enters the system only through the manual Voice Library form.
 blocked_domains:

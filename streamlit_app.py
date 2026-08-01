@@ -149,10 +149,12 @@ if featured_id:
 
         # Four facts, evenly spaced, each labelled in plain words. Previously
         # five chips ran together into one unreadable string.
+        own = [s for s in featured["sources"] if s.get("is_first_party")]
+
         f1, f2, f3, f4 = st.columns(4)
-        f1.metric("Sources behind it", len(featured["sources"]),
-                  help="How many separate pages discuss this. More sources across more "
-                       "publishers means the idea is real and not one outlet's opinion.")
+        f1.metric("Outside sources", len(featured["sources"]) - len(own),
+                  help="Pages from publishers we do not own. Our own site is excluded "
+                       "from this count — quoting ourselves is not corroboration.")
         f2.metric("Points you can prove", len(opportunity["supporting_points"]),
                   help="Arguments that have an exact quote from a real source attached. "
                        "Points that could not be evidenced were dropped, not softened.")
@@ -163,6 +165,18 @@ if featured_id:
                   help="How well-supported this is — driven by how many independent "
                        "publishers back it and how strong their evidence is. Higher is "
                        "better. This is separate from publication risk.")
+
+        # Our own pages are not evidence that the market agrees with us. Say how
+        # much of the cluster is actually us talking to ourselves.
+        if own:
+            st.markdown(
+                f"<div class='fcie-inference'><b>⌂ A further {len(own)} pages in this "
+                f"cluster are our own.</b> They are kept — knowing what we have already "
+                f"published stops us repeating ourselves — but they do not count toward "
+                f"the figure above, and they are excluded from what the market is "
+                f"saying below.</div>",
+                unsafe_allow_html=True,
+            )
 
         # A low independent count is not a defect to hide — it is the system
         # reporting that a narrative is carried mostly by vendors.

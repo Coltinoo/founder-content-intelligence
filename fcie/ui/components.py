@@ -369,6 +369,20 @@ def method_chip(method: str | None, model: str | None = None) -> str:
     return chip("analysed by", model or "LLM", tone="accent")
 
 
+def origin_chip(is_first_party: bool | None, is_promotional: bool | None = None) -> str:
+    """Who wrote this — us, a vendor, or an independent publisher.
+
+    The single most important thing to know about a source, and the app used to
+    show it nowhere. Our own marketing reading as market evidence is the failure
+    mode this exists to prevent.
+    """
+    if is_first_party:
+        return chip("⌂ our own site", tone="warn")
+    if is_promotional:
+        return chip("vendor marketing", tone="")
+    return chip("independent", tone="good")
+
+
 def score_bar(score: float | None, label: str = "opportunity",
               maximum: float = 100.0, tone: str | None = None) -> str:
     """A number plus a proportional bar, so scores are comparable at a glance.
@@ -462,6 +476,7 @@ def signal_card(signal: dict) -> None:
         # chip stays: provenance is always visible, by design.
         chip_html=(
             score_bar(signal.get("score"), "opportunity")
+            + origin_chip(signal.get("is_first_party"), signal.get("is_promotional"))
             + risk_chip(signal.get("risk"))
             + method_chip(signal.get("extraction_method"))
         ),

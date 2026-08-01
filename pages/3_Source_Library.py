@@ -106,7 +106,15 @@ selected_types = f4.multiselect("Source type", options["source_types"])
 selected_domains = f5.multiselect("Domain", options["domains"])
 selected_themes = f6.multiselect("Theme", options["themes"])
 selected_industries = f7.multiselect("Industry", options["industries"])
-selected_statuses = st.multiselect("Status", options["statuses"])
+g1, g2 = st.columns([1, 3])
+selected_statuses = g2.multiselect("Status", options["statuses"])
+origin_filter = g1.selectbox(
+    "Written by",
+    ["Everything", "Outside publishers only", "Our own site only"],
+    help="Our own pages are kept so you can see what has already been published, "
+         "but they are excluded from market signals and never count as "
+         "corroboration for a content idea.",
+)
 
 since = None
 if date_window != "All time":
@@ -119,19 +127,39 @@ frame = sources_dataframe(
     statuses=selected_statuses or None, since=since, limit=int(limit),
 )
 
+if not frame.empty and origin_filter != "Everything":
+    want_own = origin_filter == "Our own site only"
+    frame = frame[frame["is_first_party"].fillna(False) == want_own]
+
 if frame.empty:
     empty_state("No sources match these filters.",
                 "Clear the filters, or run discovery from the Executive Dashboard.")
     st.stop()
 
-st.caption(f"{count_label(len(frame), 'source')} shown.")
+own_count = int(frame["is_first_party"].fillna(False).sum())
+st.caption(
+    f"{count_label(len(frame), 'source')} shown"
+    + (f" — {own_count} from our own site, excluded from market signals "
+       f"and from corroboration counts." if own_count else ".")
+)
+
+# Who wrote it is the first thing you need to know about a source, so it sits
+# immediately after the publisher rather than buried among the scores.
+frame = frame.assign(
+    origin=frame.apply(
+        lambda r: "⌂ our own site" if r["is_first_party"]
+        else ("vendor" if r["is_promotional"] else "independent"),
+        axis=1,
+    )
+)
 
 display = frame[[
-    "id", "title", "domain", "source_type", "status", "published_at", "theme",
+    "id", "title", "domain", "origin", "source_type", "status", "published_at", "theme",
     "podium_relevance", "evidence_strength", "opportunity_score", "risk_score",
     "evidence_count", "quote_count", "extraction_method", "url",
 ]].rename(columns={
-    "id": "ID", "title": "Title", "domain": "Domain", "source_type": "Type",
+    "id": "ID", "title": "Title", "domain": "Publisher", "origin": "Written by",
+    "source_type": "Type",
     "status": "Status", "published_at": "Published", "theme": "Theme",
     "podium_relevance": "Podium", "evidence_strength": "Evidence",
     "opportunity_score": "Score", "risk_score": "Risk",

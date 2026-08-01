@@ -16,7 +16,9 @@ from fcie.ui.components import admin, header, page_setup, sidebar_status
 page_setup("Settings", "⚙")
 init_db()
 sidebar_status()
-header("Settings", "Everything the pipeline reads is editable here or in `config/*.yaml`.")
+header("Settings",
+       "Every input the pipeline reads, every scoring weight, and every prompt — shown "
+       "in full. Nothing about how a score is reached is hidden inside a model.")
 
 cfg = load_config()
 

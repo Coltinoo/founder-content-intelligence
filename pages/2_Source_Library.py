@@ -34,7 +34,9 @@ from fcie.ui.components import (
 page_setup("Source Library", "🗂")
 init_db()
 sidebar_status()
-header("Source Library", "Every collected source, its extracted evidence, and its provenance.")
+header("Source Library",
+       "Every page the system read, the evidence pulled from each one, and exactly "
+       "where it came from. Nothing here was collected from behind a login or a paywall.")
 
 options = filter_options()
 

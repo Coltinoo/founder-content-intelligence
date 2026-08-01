@@ -39,7 +39,9 @@ from fcie.utils.format import count_label, humanize_label, relative_time
 page_setup("Content Brief", "📝")
 init_db()
 sidebar_status()
-header("Content Brief Detail", "Every claim linked to the source it came from.")
+header("Content Brief",
+       "The whole argument for one piece of content — every supporting point shown "
+       "next to the verbatim passage it came from, so you can check it before you publish.")
 
 opportunities = opportunities_list()
 if not opportunities:

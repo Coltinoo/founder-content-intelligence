@@ -68,11 +68,7 @@ BASE_CSS = """
   p, li {font-size: 1.02rem; line-height: 1.75; color: #18181C;}
   a {color: #38549C;}
 
-  /* The hero statement: what this is and why it exists, in one breath. */
-  .fcie-hero {
-    font-size: 1.45rem; line-height: 1.5; font-weight: 500; color: #18181C;
-    letter-spacing: -0.015em; max-width: 46rem; margin: 0 0 0.9rem;
-  }
+  /* The standfirst under a page title: what this page is for, in one line. */
   .fcie-hero-sub {
     font-size: 1.05rem; line-height: 1.7; color: #4A4A4D;
     max-width: 44rem; margin: 0 0 0.4rem;

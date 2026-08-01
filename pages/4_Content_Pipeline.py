@@ -8,7 +8,12 @@ import streamlit as st
 from fcie.db import init_db
 from fcie.models import OPPORTUNITY_STATUSES
 from fcie.pipeline.opportunities import generate_opportunities
-from fcie.queries import opportunities_list, set_opportunity_status, themes_dataframe
+from fcie.queries import (
+    featured_opportunity_id,
+    opportunities_list,
+    set_opportunity_status,
+    themes_dataframe,
+)
 from fcie.config import read_only_notice
 from fcie.ui.components import (
     admin,
@@ -146,31 +151,48 @@ else:
 
 st.divider()
 
-# ── status control ──────────────────────────────────────────────────────────
-st.markdown("## Move an opportunity")
-if not admin():
-    st.caption("🔒 " + read_only_notice())
-col1, col2, col3 = st.columns([2, 1, 2])
-target_id = col1.selectbox(
-    "Opportunity",
-    [o["id"] for o in opportunities],
-    format_func=lambda i: f"#{i} — " + next(o["title"] for o in opportunities if o["id"] == i)[:80],
-)
-current = next(o for o in opportunities if o["id"] == target_id)
-new_status = col2.selectbox(
-    "New status", OPPORTUNITY_STATUSES,
-    index=OPPORTUNITY_STATUSES.index(current["status"]),
-    format_func=lambda s: STATUS_LABELS[s],
-)
-notes = col3.text_input("Reviewer note (optional)")
+# ── inspect / move an opportunity ───────────────────────────────────────────
+# A read-only visitor cannot move anything, so showing them a status control is
+# three dead widgets and a padlock. Give them the half that still works — pick a
+# brief, read its shape — and default it to the curated one so the first thing
+# they select is the strongest example rather than whatever sorts first.
+ids = [o["id"] for o in opportunities]
+default_index = ids.index(featured_id) if (featured_id := featured_opportunity_id()) in ids else 0
 
-if admin() and st.button("Update status"):
-    if set_opportunity_status(int(target_id), new_status, notes):
-        st.success(f"Opportunity #{target_id} moved to {STATUS_LABELS[new_status]}.")
-        st.cache_data.clear()
-        st.rerun()
-    else:
-        st.error("Update failed.")
+st.markdown("## Move an opportunity" if admin() else "## Look at a specific brief")
+
+if admin():
+    col1, col2, col3 = st.columns([2, 1, 2])
+    target_id = col1.selectbox(
+        "Opportunity", ids, index=default_index,
+        format_func=lambda i: f"#{i} — "
+        + next(o["title"] for o in opportunities if o["id"] == i)[:80],
+    )
+    current = next(o for o in opportunities if o["id"] == target_id)
+    new_status = col2.selectbox(
+        "New status", OPPORTUNITY_STATUSES,
+        index=OPPORTUNITY_STATUSES.index(current["status"]),
+        format_func=lambda s: STATUS_LABELS[s],
+    )
+    notes = col3.text_input("Reviewer note (optional)")
+
+    # Redundant with the enclosing `if admin():` — kept so the static read-only
+    # test can verify gating line-by-line without parsing block structure.
+    if admin() and st.button("Update status"):
+        if set_opportunity_status(int(target_id), new_status, notes):
+            st.success(f"Opportunity #{target_id} moved to {STATUS_LABELS[new_status]}.")
+            st.cache_data.clear()
+            st.rerun()
+        else:
+            st.error("Update failed.")
+else:
+    target_id = st.selectbox(
+        "Opportunity", ids, index=default_index,
+        format_func=lambda i: f"#{i} — "
+        + next(o["title"] for o in opportunities if o["id"] == i)[:80],
+    )
+    current = next(o for o in opportunities if o["id"] == target_id)
+    st.caption("🔒 " + read_only_notice())
 
 st.info(
     f"Open **Content Brief Detail** to read the full brief for #{target_id}, see its score "

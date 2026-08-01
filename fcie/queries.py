@@ -700,3 +700,29 @@ def recent_runs(limit: int = 10) -> list[dict]:
             }
             for r in runs
         ]
+
+
+BRIEF_WINDOWS: tuple[int, ...] = (24, 48, 72, 168, 720)
+
+
+def best_brief_window(minimum: int = 3) -> int:
+    """Narrowest lookback window that actually contains analysed sources.
+
+    The Daily Brief used to default to a fixed 48 hours. That is right the day
+    after a run and wrong every day after that: open the app a week later and
+    the page renders four zeroes and an empty state, which reads as broken
+    rather than as quiet. Widen until there is something to show, and let the
+    page say which window it settled on.
+    """
+    with session_scope() as session:
+        for hours in BRIEF_WINDOWS:
+            cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
+            count = session.execute(
+                select(func.count())
+                .select_from(Source)
+                .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
+                .where(Source.discovered_at >= cutoff)
+            ).scalar_one()
+            if count >= minimum:
+                return hours
+    return BRIEF_WINDOWS[-1]

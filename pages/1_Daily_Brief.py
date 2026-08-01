@@ -8,6 +8,7 @@ import streamlit as st
 
 from fcie.db import init_db
 from fcie.pipeline.brief_export import brief_to_markdown, build_daily_brief
+from fcie.queries import BRIEF_WINDOWS, best_brief_window
 from fcie.ui.components import (
     empty_state,
     evidence_block,
@@ -24,9 +25,20 @@ init_db()
 sidebar_status()
 header("Daily Brief", "What changed, what it means, and what needs verifying.")
 
+WINDOW_LABELS = {24: "last 24 hours", 48: "last 2 days", 72: "last 3 days",
+                 168: "last week", 720: "last 30 days"}
+
+# Default to the narrowest window that actually holds something rather than a
+# fixed 48 hours — otherwise the page reads as broken any day you open it
+# without having just run discovery.
+default_window = best_brief_window()
+
 col1, col2 = st.columns([1, 3])
-lookback = col1.selectbox("Window", [24, 48, 72, 168], index=1,
-                          format_func=lambda h: f"last {h}h")
+lookback = col1.selectbox(
+    "Window", list(BRIEF_WINDOWS),
+    index=list(BRIEF_WINDOWS).index(default_window),
+    format_func=lambda h: WINDOW_LABELS[h],
+)
 brief = build_daily_brief(lookback_hours=lookback)
 
 markdown = brief_to_markdown(brief)
@@ -39,10 +51,14 @@ col2.download_button(
 
 counters = brief["counters"]
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("Sources in window", len(brief["new_sources"]))
+m1.metric("New sources", len(brief["new_sources"]))
+m1.caption(f"Found in the {WINDOW_LABELS[lookback]}")
 m2.metric("Rising themes", len(brief["rising_themes"]))
-m3.metric("Opportunities", len(brief["opportunities"]))
-m4.metric("Verification warnings", len(brief["warnings"]))
+m2.caption("Gaining ground across publishers")
+m3.metric("Worth writing about", len(brief["opportunities"]))
+m3.caption("Briefs with evidence behind them")
+m4.metric("Needs verifying", len(brief["warnings"]))
+m4.caption("Claims the system will not vouch for")
 
 st.divider()
 

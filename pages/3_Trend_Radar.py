@@ -79,7 +79,7 @@ with c1:
         )
         .properties(height=min(34 * len(chart_frame) + 40, 500))
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 with c2:
     st.markdown("#### Relevance vs evidence strength")
@@ -101,7 +101,7 @@ with c2:
         )
         .properties(height=380)
     )
-    st.altair_chart(scatter, use_container_width=True)
+    st.altair_chart(scatter, width="stretch")
 
 # ── table ───────────────────────────────────────────────────────────────────
 st.markdown("#### All themes")

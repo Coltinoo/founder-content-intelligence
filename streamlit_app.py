@@ -10,6 +10,8 @@ import streamlit as st
 from fcie.config import load_config
 from fcie.db import init_db
 from fcie.queries import (
+    featured_opportunity_id,
+    opportunity_detail,
     dashboard_counters,
     opportunities_list,
     recent_runs,
@@ -17,6 +19,7 @@ from fcie.queries import (
     top_signals,
 )
 from fcie.ui.components import (
+    chips,
     card,
     chip,
     empty_state,
@@ -79,6 +82,44 @@ c3.metric("Ready to write", counters["opportunities"])
 c3.caption("Themes with enough evidence")
 c4.metric("To review", counters["drafts_pending"])
 c4.caption("Waiting on a human decision")
+
+st.divider()
+
+# ── the golden path: one worked example, front and centre ───────────────────
+# Nobody evaluating this in two minutes will explore 15 opportunities across 18
+# themes. They will judge it by the first one they open — so choose it for them,
+# and make it the strongest complete example rather than the highest score.
+featured_id = featured_opportunity_id()
+if featured_id:
+    featured = opportunity_detail(featured_id)
+    if featured:
+        opportunity = featured["opportunity"]
+        independent = [s for s in featured["sources"] if not s.get("is_promotional")]
+        st.markdown("## Start here — today's strongest opportunity")
+        with st.container(border=True):
+            st.markdown(f"### {opportunity['title']}")
+            chips(
+                chip("sources", str(len(featured["sources"]))),
+                chip("independent publishers", str(len(independent)),
+                     tone="good" if len(independent) >= 3 else "warn"),
+                chip("evidenced points", str(len(opportunity["supporting_points"]))),
+                chip("drafts ready", str(len(featured["drafts"]))),
+                risk_chip(opportunity["risk_score"]),
+            )
+            g1, g2 = st.columns([2, 1])
+            with g1:
+                st.markdown(f"**The insight.** {opportunity['core_insight'] or '—'}")
+                if opportunity.get("hook"):
+                    st.markdown(f"**Opening line.** {opportunity['hook']}")
+            with g2:
+                st.markdown(score_bar(opportunity["opportunity_score"], "opportunity"),
+                            unsafe_allow_html=True)
+                st.markdown(score_bar(opportunity["confidence_score"], "confidence"),
+                            unsafe_allow_html=True)
+            st.caption(
+                "Open **Content Brief** for the full argument, every supporting point "
+                "with its verbatim source passage, the risk notes and the LinkedIn draft →"
+            )
 
 st.divider()
 

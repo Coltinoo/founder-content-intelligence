@@ -50,6 +50,12 @@ FORMATS = [
     "engagement_comment", "internal_briefing_note",
 ]
 
+# Keyword-evidence floors for theme assignment. `match_themes` scores 1.0 per
+# ordinary keyword hit and 1.5 per strong keyword, capped at 4 hits each — so
+# 4.0 means several genuine mentions, not one passing reference.
+PRIMARY_THEME_MIN_SCORE = 4.0
+SECONDARY_THEME_MIN_SCORE = 3.0
+
 
 @dataclass
 class ExtractionResult:
@@ -210,10 +216,20 @@ class HeuristicExtractor:
         result.customer_segment = match_customer_segment(haystack)
 
         # ── themes ──────────────────────────────────────────────────────
+        # A theme needs real keyword evidence, not one incidental mention.
+        # Assigning on any non-zero match made "AI implementation challenges"
+        # absorb security incidents, dev-tooling posts, job listings and general
+        # AI news — 25 sources with nothing in common, which cannot support a
+        # coherent founder narrative. An unclassified source is more useful than
+        # a miscategorised one, because miscategorisation corrupts trend counts.
         theme_matches = match_themes(haystack, top_n=4)
-        if theme_matches:
-            result.primary_theme = theme_matches[0][0].name
-            result.secondary_themes = [t.name for t, _s, _k in theme_matches[1:4]]
+        strong = [m for m in theme_matches if m[1] >= PRIMARY_THEME_MIN_SCORE]
+        if strong:
+            result.primary_theme = strong[0][0].name
+            result.secondary_themes = [
+                t.name for t, score, _k in theme_matches[1:4]
+                if score >= SECONDARY_THEME_MIN_SCORE
+            ]
         matched_keywords: list[str] = []
         for _theme, _score, keywords in theme_matches:
             matched_keywords.extend(keywords)

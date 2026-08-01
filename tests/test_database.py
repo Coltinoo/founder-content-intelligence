@@ -1274,3 +1274,96 @@ class TestPublicDemoIsReadOnly:
                 if mutating.search(line) and "admin()" not in line:
                     offenders.append(f"{path.name}:{number}: {line.strip()[:80]}")
         assert not offenders, "ungated mutating controls:\n" + "\n".join(offenders)
+
+
+class TestPresentationHonesty:
+    """Small display decisions that decide whether the numbers are believed."""
+
+    def test_zero_baseline_does_not_produce_a_percentage(self):
+        from fcie.utils.format import growth_phrase
+
+        phrase = growth_phrase(18, 0)
+        assert "%" not in phrase, "no baseline means no percentage"
+        assert "new this period" in phrase
+        assert "18 sources" in phrase
+
+    def test_real_growth_still_shows_a_percentage(self):
+        from fcie.utils.format import growth_phrase
+
+        assert "100%" in growth_phrase(10, 5)
+        assert "up" in growth_phrase(10, 5)
+        assert "down" in growth_phrase(5, 10)
+        assert "flat" in growth_phrase(7, 7)
+
+    def test_old_reports_are_not_labelled_new(self):
+        from datetime import datetime, timedelta, timezone
+
+        from fcie.utils.format import recency_tier
+
+        now = datetime.now(timezone.utc)
+        assert recency_tier(now - timedelta(days=2))[0] == "new"
+        assert recency_tier(now - timedelta(days=40))[0] == "recent"
+        # A 2022 industry report must never appear as a new development.
+        assert recency_tier(datetime(2022, 3, 1, tzinfo=timezone.utc))[0] == "evergreen"
+        assert recency_tier(None)[0] == "undated"
+
+    def test_undated_source_still_reports_when_it_was_found(self):
+        from datetime import datetime, timezone
+
+        from fcie.utils.format import recency_tier
+
+        _tier, label = recency_tier(None, datetime.now(timezone.utc))
+        assert "no publication date" in label
+        assert "found" in label
+
+    def test_paragraph_metric_survives_text_without_blank_lines(self):
+        """Regression: an 18k-char article read as one 123-sentence paragraph."""
+        from fcie.pipeline.voice import analyse_example
+
+        text = "\n".join(f"Sentence number {i} about local business revenue." for i in range(60))
+        analysis = analyse_example(text)
+        assert analysis["median_paragraph_sentences"] <= 3, (
+            "single-newline text must not collapse into one giant paragraph"
+        )
+
+    def test_company_content_is_not_called_founder_voice(self, temp_db):
+        from fcie.pipeline.voice import add_voice_example, build_voice_guide, classify_provenance
+
+        assert classify_provenance("company_public_content") == "company_editorial"
+        assert classify_provenance("linkedin_post") == "verified_founder"
+
+        add_voice_example(title="[Company content] SEO article",
+                          text="A company marketing article about local business software. " * 12,
+                          content_type="company_public_content", approved=True)
+        guide = build_voice_guide()
+        assert "Editorial Baseline" in guide["label"]
+        assert "not founder voice" in guide["label"].lower()
+        assert guide["provenance_warning"]
+        assert guide["founder_example_count"] == 0
+
+    def test_aggregator_pages_are_not_top_signals(self, temp_db):
+        from datetime import datetime, timezone
+
+        from fcie.queries import top_signals
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        spec = [("startupintros.com", "Podium: Funding, Team & Investors", 95),
+                ("crunchbase.com", "Podium Company Profile", 92),
+                ("achrnews.com", "Contractors report missed after-hours calls", 70)]
+        with temp_db.session_scope() as session:
+            for index, (domain, title, score) in enumerate(spec):
+                source = Source(source_type="web_search", source_url=f"https://{domain}/{index}",
+                                canonical_url=f"https://{domain}/{index}", source_domain=domain,
+                                title=title, published_at=now, discovered_at=now,
+                                cleaned_text="body", status="extracted")
+                session.add(source)
+                session.flush()
+                session.add(ExtractedSignal(source_id=source.id, podium_relevance=9.0,
+                                            opportunity_score=score, evidence_strength=6.0,
+                                            extraction_method="llm", extracted_at=now))
+
+        titles = [s["title"] for s in top_signals(limit=5)]
+        assert not any("Funding, Team" in t or "Company Profile" in t for t in titles), (
+            "firmographic aggregators rank high on relevance but contain no reporting"
+        )
+        assert any("Contractors" in t for t in titles)

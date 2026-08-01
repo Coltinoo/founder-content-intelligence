@@ -10,6 +10,7 @@ from fcie.pipeline.drafts import FORMAT_LABELS, generate_draft, set_approval
 from fcie.pipeline.opportunities import generate_opportunities
 from fcie.queries import (
     opportunities_list,
+    featured_opportunity_id,
     opportunity_detail,
     set_opportunity_status,
     update_checklist,
@@ -46,14 +47,27 @@ if not opportunities:
                 "Generate briefs on the Content Pipeline page.")
     st.stop()
 
+# Default to the strongest complete example rather than whatever sorts first —
+# most people will look at exactly one brief, and it should be the good one.
+featured_id = featured_opportunity_id()
+ids = [o["id"] for o in opportunities]
+default_index = ids.index(featured_id) if featured_id in ids else 0
+
 selected_id = st.selectbox(
     "Content opportunity",
-    [o["id"] for o in opportunities],
+    ids,
+    index=default_index,
     format_func=lambda i: (
-        f"#{i} · {next(o['score'] for o in opportunities if o['id'] == i):.0f}/100 — "
+        ("★ " if i == featured_id else "")
+        + f"#{i} · {next(o['score'] for o in opportunities if o['id'] == i):.0f}/100 — "
         + next(o["title"] for o in opportunities if o["id"] == i)[:90]
     ),
 )
+if selected_id == featured_id:
+    st.caption(
+        "★ Best-evidenced brief in the library — most corroborating sources, most "
+        "independent publishers, and a draft already generated. Start here."
+    )
 
 detail = opportunity_detail(int(selected_id))
 if detail is None:

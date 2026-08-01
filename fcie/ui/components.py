@@ -16,6 +16,8 @@ from .. import DISCLAIMER, __version__
 from ..config import is_admin, load_config, read_only_notice
 from ..db import describe_backend
 from ..utils.format import (
+    RECENCY_LABELS,
+    recency_tier,
     count_label,
     humanize_label,
     relative_time,
@@ -313,11 +315,21 @@ def card(title: str, meta: str = "", body: str = "", url: str | None = None,
     )
 
 
+RECENCY_TONE = {"new": "good", "recent": "", "evergreen": "warn", "undated": "warn"}
+
+
+def recency_chip(published_at, discovered_at=None) -> str:
+    """State plainly whether a source is news, background, or undated."""
+    tier, label = recency_tier(published_at, discovered_at)
+    return chip(RECENCY_LABELS[tier], tone=RECENCY_TONE.get(tier, ""))
+
+
 def signal_card(signal: dict) -> None:
     """One ranked source. Replaces four stacked st.metric columns."""
-    published = relative_time(signal.get("published_at"))
+    _tier, recency_label = recency_tier(signal.get("published_at"),
+                                        signal.get("discovered_at"))
     theme = signal.get("theme") or "unclassified"
-    meta = f"{signal.get('domain','')} · {published} · {theme}"
+    meta = f"{signal.get('domain','')} · {recency_label} · {theme}"
     body = ""
     if signal.get("problem"):
         body = f"<b>Problem in source:</b> {truncate_words(signal['problem'], 34)}"
@@ -326,6 +338,7 @@ def signal_card(signal: dict) -> None:
         meta=meta, body=body, url=signal.get("url"),
         chip_html=(
             score_bar(signal.get("score"), "opportunity")
+            + recency_chip(signal.get("published_at"), signal.get("discovered_at"))
             + chip("evidence", f"{signal.get('evidence_strength') or 0:.0f}/10")
             + risk_chip(signal.get("risk"))
             + method_chip(signal.get("extraction_method"))

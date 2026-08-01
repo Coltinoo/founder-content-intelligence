@@ -106,6 +106,47 @@ def relative_time(value: datetime | None) -> str:
     return f"{count_label(days // 365, 'year')} ago"
 
 
+# How old a dated source may be and still count as "news".
+NEWLY_PUBLISHED_DAYS = 14
+RECENT_DAYS = 90
+
+
+def recency_tier(published_at: datetime | None,
+                 discovered_at: datetime | None = None) -> tuple[str, str]:
+    """Classify a source's recency. Returns ``(tier, human_label)``.
+
+    "Most important new sources" listing a 2022 industry report is a small lie
+    that costs a lot of credibility: the reader assumes everything under that
+    heading is a development, and one stale item makes them doubt the rest.
+    Old and undated material can absolutely support a brief — it just is not
+    *news*, and the interface has to say which it is.
+
+    Tiers: ``new`` · ``recent`` · ``evergreen`` · ``undated``.
+    """
+    if published_at is None:
+        return "undated", (
+            f"no publication date · found {relative_time(discovered_at)}"
+            if discovered_at else "no publication date"
+        )
+
+    moment = published_at if published_at.tzinfo else published_at.replace(tzinfo=timezone.utc)
+    age_days = (datetime.now(timezone.utc) - moment).total_seconds() / 86400.0
+
+    if age_days <= NEWLY_PUBLISHED_DAYS:
+        return "new", f"published {relative_time(published_at)}"
+    if age_days <= RECENT_DAYS:
+        return "recent", f"published {relative_time(published_at)}"
+    return "evergreen", f"background — published {relative_time(published_at)}"
+
+
+RECENCY_LABELS = {
+    "new": "Newly published",
+    "recent": "Recent",
+    "evergreen": "Evergreen background",
+    "undated": "Publication date unknown",
+}
+
+
 def growth_phrase(current: int, previous: int) -> str:
     """Describe period-over-period change without inventing a percentage.
 

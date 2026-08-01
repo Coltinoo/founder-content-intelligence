@@ -266,6 +266,24 @@ def source_detail(source_id: int) -> dict | None:
         }
 
 
+# Company-profile and firmographic aggregators. They rank well on relevance
+# because they are literally *about* the company, but they republish scraped
+# directory data with no reporting, no quotes and no argument — nothing a
+# founder could build a point of view on. Web search surfaces a lot of them.
+_AGGREGATOR_DOMAINS = {
+    "startupintros.com", "unifygtm.com", "crunchbase.com", "pitchbook.com",
+    "zoominfo.com", "owler.com", "leadiq.com", "rocketreach.co", "apollo.io",
+    "growjo.com", "cbinsights.com", "tracxn.com", "craft.co", "comparably.com",
+    "glassdoor.com", "builtin.com", "clearbit.com", "similarweb.com",
+    "g2.com", "capterra.com", "getlatka.com", "wellfound.com",
+}
+
+
+def _is_aggregator(domain: str | None) -> bool:
+    host = (domain or "").lower()
+    return any(host == a or host.endswith("." + a) for a in _AGGREGATOR_DOMAINS)
+
+
 def _diversify_by_domain(rows, limit: int, per_domain: int = 2):
     """Keep score order, but cap how many entries one publisher contributes.
 
@@ -329,6 +347,11 @@ def top_signals(limit: int = 10, min_podium_relevance: float = 4.0) -> list[dict
                 .order_by(ExtractedSignal.opportunity_score.desc())
                 .limit(limit * 6)
             ).all()
+
+    # Firmographic aggregators rank well for being *about* the company while
+    # containing no reporting at all.
+    filtered = [r for r in rows if not _is_aggregator(r[0].source_domain)]
+    rows = filtered or rows
 
     # One publisher must not own the list. Podium's job board alone produced four
     # near-identical "AI Customer Success Manager" postings in the top six —
@@ -433,6 +456,61 @@ def opportunities_list(statuses: list[str] | None = None) -> list[dict]:
                 "generation_method": opportunity.generation_method,
             })
     return out
+
+
+def featured_opportunity_id() -> int | None:
+    """The single opportunity to lead with — the "golden path".
+
+    Nobody evaluating this in two minutes will explore 15 opportunities across
+    18 themes; they will judge it by the first one they open. So the app picks
+    the strongest complete example and defaults to it everywhere, rather than
+    defaulting to whatever sorts first.
+
+    "Strongest" is not the highest score. A brief that scores 80 on two
+    single-domain vendor pages is a worse demonstration than one scoring 65 on
+    four independent outlets with a draft attached, because the second one shows
+    the whole pipeline working. The weighting below encodes that: corroboration
+    breadth and having a draft matter as much as the score itself.
+    """
+    best_id, best_rank = None, float("-inf")
+    with session_scope() as session:
+        rows = session.execute(
+            select(ContentOpportunity).where(ContentOpportunity.status != "archived")
+        ).scalars().all()
+        for opportunity in rows:
+            source_ids = list(opportunity.supporting_source_ids or [])
+            points = len(opportunity.supporting_points or [])
+            # A one-point brief is not a demonstration of anything, whatever it
+            # scores. Hard gate rather than a weight.
+            if not source_ids or points < 3:
+                continue
+            domains = session.execute(
+                select(func.count(func.distinct(Source.source_domain)))
+                .where(Source.id.in_(source_ids))
+            ).scalar() or 0
+            independent = session.execute(
+                select(func.count(Source.id))
+                .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
+                .where(Source.id.in_(source_ids))
+                .where(ExtractedSignal.is_promotional_source.is_(False))
+            ).scalar() or 0
+            drafts = session.scalar(
+                select(func.count(ContentDraft.id))
+                .where(ContentDraft.content_opportunity_id == opportunity.id)
+            ) or 0
+
+            rank = (
+                (opportunity.opportunity_score or 0) * 0.30
+                + (opportunity.confidence_score or 0) * 0.25
+                + min(domains, 5) * 8            # corroboration breadth
+                + min(independent, 4) * 6        # not just vendor pages
+                + min(points, 5) * 4             # a brief you can actually read
+                + (12 if drafts else 0)          # the pipeline ran end to end
+                - (opportunity.risk_score or 0) * 0.15
+            )
+            if rank > best_rank:
+                best_id, best_rank = opportunity.id, rank
+    return best_id
 
 
 def opportunity_detail(opportunity_id: int) -> dict | None:

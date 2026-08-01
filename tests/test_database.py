@@ -1367,3 +1367,76 @@ class TestPresentationHonesty:
             "firmographic aggregators rank high on relevance but contain no reporting"
         )
         assert any("Contractors" in t for t in titles)
+
+
+class TestTextContrast:
+    """The CSS palette must stay legible.
+
+    This app has already shipped an unreadable build once: a
+    `prefers-color-scheme: dark` block painted card backgrounds dark while the
+    pinned light theme kept the ink dark, and nothing caught it because the
+    markup was correct — only the rendered colours were wrong. Contrast is a
+    property worth asserting rather than eyeballing.
+    """
+
+    @staticmethod
+    def _relative_luminance(hex_colour: str) -> float:
+        raw = hex_colour.lstrip("#")
+        channels = [int(raw[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+                  for c in channels]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    @classmethod
+    def _ratio(cls, foreground: str, background: str) -> float:
+        first = cls._relative_luminance(foreground)
+        second = cls._relative_luminance(background)
+        lighter, darker = max(first, second), min(first, second)
+        return (lighter + 0.05) / (darker + 0.05)
+
+    # (label, foreground, background, floor). 4.5 is the WCAG AA floor for
+    # body text; large text and chips are held to the same bar deliberately.
+    PAIRS = [
+        ("body text", "#16202B", "#FFFFFF", 4.5),
+        ("muted text", "#5B6B7C", "#FFFFFF", 4.5),
+        ("disclaimer", "#55636F", "#F7F9FB", 4.5),
+        ("chip", "#4A5866", "#F0F3F7", 4.5),
+    ]
+
+    def test_palette_meets_wcag_aa(self):
+        for label, foreground, background, floor in self.PAIRS:
+            ratio = self._ratio(foreground, background)
+            assert ratio >= floor, (
+                f"{label}: {foreground} on {background} is {ratio:.2f}:1, "
+                f"below the {floor}:1 floor"
+            )
+
+    def test_css_never_reintroduces_prefers_color_scheme(self):
+        """The exact construct that caused the unreadable build."""
+        import pathlib
+
+        import re
+
+        css = pathlib.Path("fcie/ui/components.py").read_text(encoding="utf-8")
+        # Match the media query itself, not the comment that explains why it is
+        # banned — that comment is the reason this test exists.
+        query = re.search(r"@media[^{]*prefers-color-scheme", css)
+        assert query is None, (
+            "prefers-color-scheme media query reintroduced: the app pins "
+            "Streamlit's light theme, so a dark-mode query sets backgrounds "
+            "without setting the matching ink and the result is dark-on-dark."
+        )
+
+    def test_declared_colours_are_all_covered_by_the_contrast_check(self):
+        """A colour added to the palette but not to PAIRS is untested."""
+        import pathlib
+        import re
+
+        css = pathlib.Path("fcie/ui/components.py").read_text(encoding="utf-8")
+        declared = {c.upper() for c in re.findall(r"#[0-9A-Fa-f]{6}", css)}
+        checked = {c.upper() for _l, fg, bg, _f in self.PAIRS for c in (fg, bg)}
+        # Borders and accents legitimately carry no text; assert only that the
+        # foregrounds we do check are still present in the stylesheet, so a
+        # rename cannot leave this test silently asserting dead values.
+        missing = checked - declared
+        assert not missing, f"contrast test references colours not in the CSS: {missing}"

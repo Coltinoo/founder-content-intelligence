@@ -53,8 +53,10 @@ BASE_CSS = """
   [data-testid="stMetricValue"] {font-size: 1.9rem; font-weight: 700; color: #16202B;}
   [data-testid="stMetricLabel"] {font-size: 0.8rem; color: #5B6B7C;}
 
+  /* #6B7A89 on #F7F9FB measured 4.17:1 — under the 4.5:1 AA floor, on the one
+     block of text that must not be hard to read. #55636F measures 5.85:1. */
   .fcie-disclaimer {
-    font-size: 0.74rem; color: #6B7A89; background: #F7F9FB;
+    font-size: 0.74rem; color: #55636F; background: #F7F9FB;
     border-left: 3px solid #D6DEE6; border-radius: 0 6px 6px 0;
     padding: 0.5rem 0.8rem; margin: 0.6rem 0 1.4rem; line-height: 1.5;
   }

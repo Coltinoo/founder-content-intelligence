@@ -315,13 +315,20 @@ def method_chip(method: str | None, model: str | None = None) -> str:
 
 def score_bar(score: float | None, label: str = "opportunity",
               maximum: float = 100.0, tone: str | None = None) -> str:
-    """A number plus a proportional bar, so scores are comparable at a glance."""
+    """A number plus a proportional bar, so scores are comparable at a glance.
+
+    These used to emit ``background: var(--fcie-accent)``. The stylesheet
+    defines no custom properties — that was the point of removing them — so the
+    variable resolved to nothing and every bar in the app rendered as an empty
+    grey track. Literal hex, matching BASE_CSS.
+    """
     value = float(score or 0)
     pct = max(0.0, min(100.0, value / maximum * 100.0))
     colour = {
-        "good": "var(--fcie-good)", "warn": "var(--fcie-warn)",
-        "bad": "var(--fcie-bad)", None: "var(--fcie-accent)",
-    }.get(tone, "var(--fcie-accent)")
+        "good": "#5D6345",    # sage
+        "warn": "#CF9D4E",    # warm
+        "bad": "#A54848",     # red
+    }.get(tone or "", "#4B79ED")  # periwinkle — Podium's primary
     return (
         f'<div class="fcie-score">'
         f'<span class="fcie-score__num">{value:.0f}</span>'

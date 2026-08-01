@@ -1450,3 +1450,63 @@ class TestTextContrast:
         # rename cannot leave this test silently asserting dead values.
         missing = checked - declared
         assert not missing, f"contrast test references colours not in the CSS: {missing}"
+
+
+class TestNoUndefinedCssVariables:
+    """Inline styles must not reference custom properties the CSS never defines.
+
+    `score_bar()` emitted `background: var(--fcie-accent)` for months. The
+    stylesheet defines no custom properties — removing them was deliberate —
+    so the variable resolved to nothing and every score bar in the app rendered
+    as an empty grey track. It fails silently: no error, no warning, just a
+    missing colour that nobody notices in a DOM dump.
+    """
+
+    @staticmethod
+    def _code_without_prose(path: str) -> str:
+        """Source with docstrings and comments removed.
+
+        Both this test and the prefers-color-scheme one first failed on the
+        comment explaining the very thing they ban. Scan the code, not the
+        writing about the code.
+        """
+        import ast
+        import pathlib
+        import re
+
+        source = pathlib.Path(path).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        docstrings = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef,
+                                 ast.FunctionDef, ast.AsyncFunctionDef)):
+                text = ast.get_docstring(node, clean=False)
+                if text:
+                    docstrings.append(text)
+        for text in docstrings:
+            source = source.replace(text, "")
+        return re.sub(r"(?m)#.*$", "", source)
+
+    def test_every_css_variable_used_is_also_defined(self):
+        import re
+
+        code = self._code_without_prose("fcie/ui/components.py")
+        used = set(re.findall(r"var\(\s*(--[\w-]+)", code))
+        defined = set(re.findall(r"(--[\w-]+)\s*:", code))
+        undefined = used - defined
+        assert not undefined, (
+            f"inline styles reference undefined CSS variables: {sorted(undefined)}. "
+            "They resolve to nothing and the element renders unstyled."
+        )
+
+    def test_score_bar_emits_a_real_colour(self):
+        import re
+
+        from fcie.ui.components import score_bar
+
+        for tone in (None, "good", "warn", "bad"):
+            html = score_bar(72, "opportunity", tone=tone)
+            assert "var(" not in html, f"score_bar(tone={tone!r}) still uses var()"
+            assert re.search(r"background:#[0-9A-Fa-f]{6}", html), (
+                f"score_bar(tone={tone!r}) emitted no literal colour: {html}"
+            )

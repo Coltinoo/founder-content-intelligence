@@ -1411,6 +1411,8 @@ class TestTextContrast:
         ("evidence block", "#18181C", "#F5F8FF", 4.5),
         ("inference block", "#18181C", "#FCFAF5", 4.5),
         ("link", "#38549C", "#FFFFFF", 4.5),
+        ("primary button", "#FFFFFF", "#4565B6", 4.5),
+        ("primary button hover", "#FFFFFF", "#38549C", 4.5),
     ]
 
     def test_palette_meets_wcag_aa(self):

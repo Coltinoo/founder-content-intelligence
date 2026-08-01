@@ -122,14 +122,14 @@ BASE_CSS = """
   .fcie-score {display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0;}
   .fcie-score__num {font-size: 1.15rem; font-weight: 700; color: #18181C; min-width: 2.4rem;}
   .fcie-score__track {flex: 1; height: 7px; border-radius: 999px; background: #E8E8ED;}
-  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #4B79ED;}
+  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #4565B6;}
   .fcie-score__label {font-size: 0.76rem; color: #626265; min-width: 5.5rem;}
 
   /* The one distinction that matters: quoted fact vs our interpretation.
      Blue rule = something a source actually said. Warm rule = our reading of
      it. Two of Podium's own ramps, doing one job each. */
   .fcie-evidence {
-    border-left: 3px solid #4B79ED; background: #F5F8FF; color: #18181C;
+    border-left: 3px solid #4565B6; background: #F5F8FF; color: #18181C;
     padding: 0.7rem 0.9rem; margin: 0.6rem 0; font-size: 0.94rem;
     line-height: 1.65; border-radius: 0 8px 8px 0;
   }
@@ -154,6 +154,21 @@ BASE_CSS = """
   }
 
   hr {margin: 1.4rem 0; border-color: #E8E8ED;}
+
+  /* Primary buttons. Streamlit paints the fill from theme.primaryColor but takes
+     the label from theme.textColor, so it put #18181C ink on the blue fill —
+     3.19:1. It does not pick a readable label for you, and darkening the fill
+     makes it worse rather than flipping the text to white. Both values set here,
+     which is rule 2 at the top of this file. The label sits in a nested <p> that
+     inherits Streamlit's colour, so it needs saying twice. */
+  button[data-testid="stBaseButton-primary"],
+  button[data-testid="stBaseButton-primary"] p {
+    background: #4565B6; color: #FFFFFF; border-color: #4565B6;
+  }
+  button[data-testid="stBaseButton-primary"]:hover,
+  button[data-testid="stBaseButton-primary"]:hover p {
+    background: #38549C; color: #FFFFFF; border-color: #38549C;
+  }
 
   /* Streamlit labels the entry-point page in the sidebar from its filename, so
      the first nav item reads "streamlit app" — the first thing anyone sees.
@@ -328,7 +343,7 @@ def score_bar(score: float | None, label: str = "opportunity",
         "good": "#5D6345",    # sage
         "warn": "#CF9D4E",    # warm
         "bad": "#A54848",     # red
-    }.get(tone or "", "#4B79ED")  # periwinkle — Podium's primary
+    }.get(tone or "", "#4565B6")  # periwinkle — Podium's primary
     return (
         f'<div class="fcie-score">'
         f'<span class="fcie-score__num">{value:.0f}</span>'

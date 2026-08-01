@@ -279,12 +279,12 @@ _AGGREGATOR_DOMAINS = {
 }
 
 
-def _is_aggregator(domain: str | None) -> bool:
+def is_aggregator(domain: str | None) -> bool:
     host = (domain or "").lower()
     return any(host == a or host.endswith("." + a) for a in _AGGREGATOR_DOMAINS)
 
 
-def _diversify_by_domain(rows, limit: int, per_domain: int = 2):
+def diversify_by_domain(rows, limit: int, per_domain: int = 2):
     """Keep score order, but cap how many entries one publisher contributes.
 
     Deliberately returns a *shorter* list rather than backfilling with the
@@ -350,13 +350,13 @@ def top_signals(limit: int = 10, min_podium_relevance: float = 4.0) -> list[dict
 
     # Firmographic aggregators rank well for being *about* the company while
     # containing no reporting at all.
-    filtered = [r for r in rows if not _is_aggregator(r[0].source_domain)]
+    filtered = [r for r in rows if not is_aggregator(r[0].source_domain)]
     rows = filtered or rows
 
     # One publisher must not own the list. Podium's job board alone produced four
     # near-identical "AI Customer Success Manager" postings in the top six —
     # individually relevant, collectively useless as a view of the market.
-    rows = _diversify_by_domain(rows, limit)
+    rows = diversify_by_domain(rows, limit)
     return [
         {
             "source_id": s.id, "title": s.title or "(untitled)", "url": s.canonical_url,

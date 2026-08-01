@@ -10,6 +10,8 @@ from ..db import session_scope
 from ..models import ContentDraft, ExtractedSignal, Source
 from ..queries import (
     dashboard_counters,
+    diversify_by_domain,
+    is_aggregator,
     opportunities_list,
     themes_dataframe,
     watchlist_items,
@@ -29,6 +31,18 @@ def build_daily_brief(*, lookback_hours: int = 48, top_n: int = 5) -> dict:
             .order_by(ExtractedSignal.opportunity_score.desc())
             .limit(top_n * 3)
         ).all()
+        # Directory and funding-database pages score well on freshness and
+        # relevance without saying anything about the market. They are already
+        # filtered out of the dashboard's signal panel; the brief used a
+        # different query and let them back in, so a company-profile listing
+        # ranked as the day's second most important source.
+        rows = [(s, sig) for s, sig in rows if not is_aggregator(s.source_domain)]
+        # Same per-publisher cap the dashboard applies, so the two pages cannot
+        # disagree about what the day's top sources were. On the current corpus
+        # it changes nothing — no publisher exceeds the cap — but the brief was
+        # the one ranked list in the app with no ceiling on how much of it a
+        # single outlet could occupy.
+        rows = diversify_by_domain(rows, top_n)
         new_sources = [
             {
                 "id": s.id, "title": s.title or "(untitled)", "url": s.canonical_url,

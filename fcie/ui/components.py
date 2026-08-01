@@ -16,7 +16,6 @@ from .. import DISCLAIMER, __version__
 from ..config import is_admin, load_config, read_only_notice
 from ..db import describe_backend
 from ..utils.format import (
-    RECENCY_LABELS,
     recency_tier,
     count_label,
     humanize_label,
@@ -25,7 +24,14 @@ from ..utils.format import (
     truncate_words,
 )
 
-# Deliberately plain CSS. Two rules learned the hard way:
+# Palette taken from Podium's own published design tokens (the `--token-*` custom
+# properties on podium.com): the #18181C near-black spine, the periwinkle blue
+# ramp, the sage/olive secondary, and their warm and red ramps. Read off the live
+# stylesheet rather than eyeballed, so the app looks like it belongs in front of
+# this particular company. It deliberately borrows no logo, wordmark or layout —
+# the disclaimer at the top of every page says whose project this is.
+#
+# Two rules learned the hard way and enforced by tests:
 #
 #   1. Never use `prefers-color-scheme`. The app pins Streamlit's light theme in
 #      .streamlit/config.toml, so on a machine set to dark mode the media query
@@ -35,91 +41,145 @@ from ..utils.format import (
 #   2. Always set colour and background together. Inheriting one from Streamlit
 #      and setting the other is what caused that bug.
 #
-# No color-mix(), no variables, no gradients — an interviewer should read the
-# screen instantly, and this has fewer ways to go wrong.
+# No color-mix(), no variables, no gradients. Every text/background pair here is
+# asserted against the 4.5:1 WCAG AA floor in tests/test_database.py; the worst
+# pair measures 5.54:1. If you change a colour, change the test.
 BASE_CSS = """
 <style>
-  .block-container {padding-top: 2rem; padding-bottom: 4rem; max-width: 1280px;}
+  /* Typeface is set in .streamlit/config.toml, not here — Streamlit's own font
+     rules outrank a stylesheet appended to the page, so a font-family declared
+     in this file silently loses to Source Sans on every element it styles. */
 
-  /* Typography: three clear levels, nothing decorative. */
-  h1 {font-size: 1.8rem !important; font-weight: 700; color: #16202B;
-      letter-spacing: -0.02em; margin-bottom: 0.2rem !important;}
-  h2 {font-size: 1.15rem !important; font-weight: 700; color: #16202B;
-      margin: 2.2rem 0 0.7rem !important;}
-  h3 {font-size: 1.02rem !important; font-weight: 650; color: #16202B;
-      margin-top: 1.1rem !important;}
-  p, li {line-height: 1.62; color: #16202B;}
+  .block-container {padding-top: 3rem; padding-bottom: 6rem; max-width: 1100px;}
 
-  [data-testid="stMetricValue"] {font-size: 1.9rem; font-weight: 700; color: #16202B;}
-  [data-testid="stMetricLabel"] {font-size: 0.8rem; color: #5B6B7C;}
+  /* Type scale borrowed from product-marketing pages rather than dashboards:
+     one confident headline, a readable sub, and body text at a size meant for
+     reading. Sections are separated by whitespace, not boxes — the previous
+     version drew a border around almost everything and the eye had nowhere to
+     rest. */
+  h1 {font-size: 2.9rem !important; font-weight: 700; color: #18181C;
+      letter-spacing: -0.035em; line-height: 1.1;
+      margin: 0 0 0.5rem !important;}
+  h2 {font-size: 1.6rem !important; font-weight: 700; color: #18181C;
+      letter-spacing: -0.02em; line-height: 1.25;
+      margin: 3.4rem 0 1rem !important;}
+  h3 {font-size: 1.15rem !important; font-weight: 650; color: #18181C;
+      letter-spacing: -0.01em; margin: 1.4rem 0 0.4rem !important;}
+  p, li {font-size: 1.02rem; line-height: 1.75; color: #18181C;}
+  a {color: #38549C;}
 
-  /* #6B7A89 on #F7F9FB measured 4.17:1 — under the 4.5:1 AA floor, on the one
-     block of text that must not be hard to read. #55636F measures 5.85:1. */
+  /* The hero statement: what this is and why it exists, in one breath. */
+  .fcie-hero {
+    font-size: 1.45rem; line-height: 1.5; font-weight: 500; color: #18181C;
+    letter-spacing: -0.015em; max-width: 46rem; margin: 0 0 0.9rem;
+  }
+  .fcie-hero-sub {
+    font-size: 1.05rem; line-height: 1.7; color: #4A4A4D;
+    max-width: 44rem; margin: 0 0 0.4rem;
+  }
+
+  /* A single quiet fact, set apart. Used for the "why you need it" line. */
+  .fcie-pull {
+    border-top: 1px solid #E8E8ED; border-bottom: 1px solid #E8E8ED;
+    padding: 1.5rem 0; margin: 2.2rem 0;
+    font-size: 1.2rem; line-height: 1.6; color: #18181C; font-weight: 500;
+    letter-spacing: -0.01em; max-width: 46rem;
+  }
+  .fcie-pull b {font-weight: 700;}
+
+  [data-testid="stMetricValue"] {font-size: 2rem; font-weight: 700; color: #18181C;}
+  [data-testid="stMetricLabel"] {font-size: 0.82rem; color: #626265; font-weight: 600;}
+
   .fcie-disclaimer {
-    font-size: 0.74rem; color: #55636F; background: #F7F9FB;
-    border-left: 3px solid #D6DEE6; border-radius: 0 6px 6px 0;
-    padding: 0.5rem 0.8rem; margin: 0.6rem 0 1.4rem; line-height: 1.5;
+    font-size: 0.76rem; color: #4A4A4D; background: #F4F4F7;
+    border-left: 3px solid #DCDCE1; border-radius: 0 8px 8px 0;
+    padding: 0.55rem 0.85rem; margin: 0.6rem 0 1.5rem; line-height: 1.55;
   }
 
-  /* Chips — one shape for all metadata. Colour AND background always set. */
+  /* Chips — one shape for all metadata. Colour AND background always set.
+     Pill-shaped, matching Podium's 50px button radius. */
   .fcie-chip {
-    display: inline-block; font-size: 0.72rem; font-weight: 600; line-height: 1.35;
-    padding: 0.2rem 0.55rem; border-radius: 6px; margin: 0 0.3rem 0.3rem 0;
-    white-space: nowrap; background: #F0F3F7; color: #4A5866; border: 1px solid #DDE4EB;
+    display: inline-block; font-size: 0.74rem; font-weight: 600; line-height: 1.4;
+    padding: 0.22rem 0.62rem; border-radius: 999px; margin: 0 0.35rem 0.35rem 0;
+    white-space: nowrap; background: #F4F4F7; color: #4A4A4D; border: 1px solid #E8E8ED;
   }
-  .fcie-chip b {color: #16202B; font-weight: 700;}
-  .fcie-chip--good   {background: #E8F5EE; color: #1B6E47; border-color: #BFE3D0;}
-  .fcie-chip--warn   {background: #FDF3E3; color: #8A5A12; border-color: #F0DBB4;}
-  .fcie-chip--bad    {background: #FCEBE9; color: #963025; border-color: #F2C9C4;}
-  .fcie-chip--accent {background: #EAF1F8; color: #1F4E79; border-color: #C7DAEC;}
+  .fcie-chip b {color: #18181C; font-weight: 700;}
+  .fcie-chip--good   {background: #F3F4EF; color: #434832; border-color: #CDD1BF;}
+  .fcie-chip--warn   {background: #F9F4EB; color: #5C4F3A; border-color: #EEE0CA;}
+  .fcie-chip--bad    {background: #F0DCDC; color: #862525; border-color: #D2A1A1;}
+  .fcie-chip--accent {background: #E0E9FC; color: #38549C; border-color: #C2D2F9;}
 
   /* Cards — white surface, dark text, always. */
   .fcie-card {
-    border: 1px solid #E3E8ED; border-radius: 8px; background: #FFFFFF;
-    padding: 0.9rem 1rem; margin-bottom: 0.7rem;
+    border: 1px solid #E8E8ED; border-radius: 10px; background: #FFFFFF;
+    padding: 1rem 1.1rem; margin-bottom: 0.75rem;
   }
-  .fcie-card__title {font-size: 0.98rem; font-weight: 650; line-height: 1.4;
-                     color: #16202B; margin-bottom: 0.25rem;}
-  .fcie-card__title a {color: #16202B; text-decoration: none;}
-  .fcie-card__title a:hover {color: #1F4E79; text-decoration: underline;}
-  .fcie-card__meta {font-size: 0.76rem; color: #5B6B7C; margin-bottom: 0.5rem;}
-  .fcie-card__body {font-size: 0.86rem; line-height: 1.55; color: #2C3947;
-                    margin: 0.35rem 0 0.55rem;}
+  .fcie-card__title {font-size: 1rem; font-weight: 650; line-height: 1.45;
+                     color: #18181C; margin-bottom: 0.3rem;}
+  .fcie-card__title a {color: #18181C; text-decoration: none;}
+  .fcie-card__title a:hover {color: #38549C; text-decoration: underline;}
+  .fcie-card__meta {font-size: 0.79rem; color: #626265; margin-bottom: 0.55rem;}
+  .fcie-card__body {font-size: 0.92rem; line-height: 1.62; color: #4A4A4D;
+                    margin: 0.4rem 0 0.6rem;}
 
   /* Score bar — the number leads, the bar makes it comparable. */
-  .fcie-score {display: flex; align-items: center; gap: 0.55rem; margin: 0.3rem 0;}
-  .fcie-score__num {font-size: 1.1rem; font-weight: 700; color: #16202B; min-width: 2.3rem;}
-  .fcie-score__track {flex: 1; height: 6px; border-radius: 999px; background: #E7ECF1;}
-  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #1F4E79;}
-  .fcie-score__label {font-size: 0.74rem; color: #5B6B7C; min-width: 5.5rem;}
+  .fcie-score {display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0;}
+  .fcie-score__num {font-size: 1.15rem; font-weight: 700; color: #18181C; min-width: 2.4rem;}
+  .fcie-score__track {flex: 1; height: 7px; border-radius: 999px; background: #E8E8ED;}
+  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #4B79ED;}
+  .fcie-score__label {font-size: 0.76rem; color: #626265; min-width: 5.5rem;}
 
-  /* The one distinction that matters: quoted fact vs our interpretation. */
+  /* The one distinction that matters: quoted fact vs our interpretation.
+     Blue rule = something a source actually said. Warm rule = our reading of
+     it. Two of Podium's own ramps, doing one job each. */
   .fcie-evidence {
-    border-left: 3px solid #2E6DA4; background: #F2F7FC; color: #1B2733;
-    padding: 0.65rem 0.85rem; margin: 0.55rem 0; font-size: 0.88rem;
-    line-height: 1.6; border-radius: 0 6px 6px 0;
+    border-left: 3px solid #4B79ED; background: #F5F8FF; color: #18181C;
+    padding: 0.7rem 0.9rem; margin: 0.6rem 0; font-size: 0.94rem;
+    line-height: 1.65; border-radius: 0 8px 8px 0;
   }
   .fcie-inference {
-    border-left: 3px solid #C08A2E; background: #FDF8EF; color: #1B2733;
-    padding: 0.65rem 0.85rem; margin: 0.55rem 0; font-size: 0.88rem;
-    line-height: 1.6; border-radius: 0 6px 6px 0;
+    border-left: 3px solid #CF9D4E; background: #FCFAF5; color: #18181C;
+    padding: 0.7rem 0.9rem; margin: 0.6rem 0; font-size: 0.94rem;
+    line-height: 1.65; border-radius: 0 8px 8px 0;
   }
-  .fcie-srcline {font-size: 0.73rem; color: #5B6B7C; margin-top: 0.4rem;}
-  .fcie-srcline a {color: #1F4E79;}
+  .fcie-srcline {font-size: 0.76rem; color: #626265; margin-top: 0.45rem;}
+  .fcie-srcline a {color: #38549C;}
 
-  .fcie-muted {font-size: 0.8rem; color: #5B6B7C;}
-  .fcie-lead  {font-size: 1.02rem; line-height: 1.7; color: #16202B;}
+  .fcie-muted {font-size: 0.85rem; color: #626265;}
+  .fcie-lead  {font-size: 1.1rem; line-height: 1.75; color: #18181C;}
 
   section[data-testid="stSidebar"] .fcie-status {
     display: flex; justify-content: space-between; align-items: baseline;
-    font-size: 0.78rem; padding: 0.3rem 0; border-bottom: 1px solid #E3E8ED;
-    color: #16202B;
+    font-size: 0.8rem; padding: 0.32rem 0; border-bottom: 1px solid #E8E8ED;
+    color: #18181C;
   }
   section[data-testid="stSidebar"] .fcie-status span:last-child {
-    color: #5B6B7C; text-align: right; margin-left: 0.5rem;
+    color: #626265; text-align: right; margin-left: 0.5rem;
   }
 
-  hr {margin: 1.3rem 0; border-color: #E3E8ED;}
+  hr {margin: 1.4rem 0; border-color: #E8E8ED;}
+
+  /* Streamlit labels the entry-point page in the sidebar from its filename, so
+     the first nav item reads "streamlit app" — the first thing anyone sees.
+     There is no config for it: the supported fix is st.navigation(), which
+     requires the pages/ directory to be renamed and the entry point rewritten
+     as a router, and Streamlit Cloud's configured main file is streamlit_app.py.
+     This relabels the visible text only: the link's accessible name stays
+     "streamlit app", which is what it already was, so this is no worse for a
+     screen reader — just not a fix for one. If Streamlit changes its markup the
+     selector stops matching and the original label returns; it cannot break
+     routing either way. Renaming the entry file is the real fix, and needs the
+     main-file path changed in Streamlit Cloud's settings at the same time. */
+  [data-testid="stSidebarNav"] li:first-child a p {
+    visibility: hidden; position: relative;
+  }
+  [data-testid="stSidebarNav"] li:first-child a p::after {
+    content: "Dashboard"; visibility: visible;
+    position: absolute; left: 0; top: 0; white-space: nowrap;
+  }
+
+  /* Sidebar nav: a little more room between items than the default. */
+  [data-testid="stSidebarNav"] li {margin-bottom: 0.1rem;}
 </style>
 """
 
@@ -171,9 +231,17 @@ def page_setup(title: str, icon: str = "◆") -> None:
 
 
 def header(title: str, subtitle: str = "") -> None:
+    """Page title and its one-line purpose.
+
+    The subtitle used to render as ``st.caption`` — 0.8rem grey, the same
+    treatment as a footnote. It is the sentence that tells a first-time reader
+    what the page is *for*, so it is now set as a proper standfirst under the
+    heading and given room to breathe.
+    """
     st.title(title)
     if subtitle:
-        st.caption(subtitle)
+        st.markdown(f"<div class='fcie-hero-sub'>{subtitle}</div>",
+                    unsafe_allow_html=True)
     st.markdown(f'<div class="fcie-disclaimer">{DISCLAIMER}</div>', unsafe_allow_html=True)
 
 
@@ -317,15 +385,6 @@ def card(title: str, meta: str = "", body: str = "", url: str | None = None,
     )
 
 
-RECENCY_TONE = {"new": "good", "recent": "", "evergreen": "warn", "undated": "warn"}
-
-
-def recency_chip(published_at, discovered_at=None) -> str:
-    """State plainly whether a source is news, background, or undated."""
-    tier, label = recency_tier(published_at, discovered_at)
-    return chip(RECENCY_LABELS[tier], tone=RECENCY_TONE.get(tier, ""))
-
-
 def signal_card(signal: dict) -> None:
     """One ranked source. Replaces four stacked st.metric columns."""
     _tier, recency_label = recency_tier(signal.get("published_at"),
@@ -338,10 +397,12 @@ def signal_card(signal: dict) -> None:
     card(
         title=truncate_words(signal.get("title") or "(untitled)", 18),
         meta=meta, body=body, url=signal.get("url"),
+        # Three chips, not five. The recency chip repeated what the meta line
+        # already says, and evidence strength is on the source's own page — five
+        # pills per row across five cards is a wall, not a summary. The method
+        # chip stays: provenance is always visible, by design.
         chip_html=(
             score_bar(signal.get("score"), "opportunity")
-            + recency_chip(signal.get("published_at"), signal.get("discovered_at"))
-            + chip("evidence", f"{signal.get('evidence_strength') or 0:.0f}/10")
             + risk_chip(signal.get("risk"))
             + method_chip(signal.get("extraction_method"))
         ),

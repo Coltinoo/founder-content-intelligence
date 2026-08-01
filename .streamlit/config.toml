@@ -1,13 +1,25 @@
 # Restrained, executive-friendly presentation.
 # Intelligence dashboard, not a social-media scheduler.
+#
+# Colours are Podium's own published design tokens, so Streamlit's built-in
+# widgets (selectboxes, sliders, progress bars) match the custom CSS in
+# fcie/ui/components.py instead of falling back to Streamlit red.
+# `base = "light"` is load-bearing: see the prefers-color-scheme note in
+# components.py for what happens when the theme and the CSS disagree.
 
 [theme]
 base = "light"
-primaryColor = "#1F4E79"
+primaryColor = "#4B79ED"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F4F6F8"
-textColor = "#16202B"
-font = "sans serif"
+secondaryBackgroundColor = "#F4F4F7"
+textColor = "#18181C"
+# Podium sets Graphik, which is proprietary. Inter is their own declared
+# fallback and the closest freely available face. Set here rather than in CSS
+# because Streamlit's own font rules outrank a stylesheet appended to the page —
+# a `font-family` in components.py loses to Source Sans on every element it
+# styles. Everything after Inter is a system face, so nothing is fetched at
+# render time and the stack degrades cleanly on a machine without Inter.
+font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 [server]
 headless = true

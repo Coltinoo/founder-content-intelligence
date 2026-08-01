@@ -19,14 +19,11 @@ from fcie.queries import (
     top_signals,
 )
 from fcie.ui.components import (
-    chips,
     card,
     chip,
     empty_state,
-    format_date,
     header,
     page_setup,
-    risk_chip,
     run_pipeline_widget,
     score_bar,
     sidebar_status,
@@ -43,9 +40,10 @@ cfg = load_config()
 counters = dashboard_counters()
 
 header(
-    "Executive Dashboard",
-    "Reads the public web every day and turns what it finds into founder-content "
-    "briefs — where every claim links back to the source it came from.",
+    "Know what to say next.",
+    "Founder Content Intelligence reads the public web every day and turns what "
+    "it finds into founder-ready content briefs — where every single claim links "
+    "back to the source it came from.",
 )
 
 if counters["total_sources"] == 0:
@@ -58,32 +56,38 @@ if counters["total_sources"] == 0:
     )
     st.stop()
 
-# ── the one-paragraph answer, before any dials ──────────────────────────────
+# ── why this exists, before any numbers ─────────────────────────────────────
+# A first-time reader needs the problem stated before the machinery. One
+# sentence, set apart, doing the job a product page's opening line does.
 st.markdown(
-    f"<div class='fcie-lead'>Tracking <b>{counters['total_sources']}</b> public sources "
-    f"across <b>{counters['distinct_domains']}</b> publishers. "
-    f"They cluster into <b>{counters['themes']}</b> themes, of which "
-    f"<b>{counters['rising_themes']}</b> are gaining ground — and "
-    f"<b>{counters['opportunities']}</b> have enough evidence behind them to be worth "
-    f"writing about.</div>",
+    "<div class='fcie-pull'>A founder's most valuable asset is a point of view "
+    "the market is ready to hear. Finding it means reading everything; publishing "
+    "it safely means being able to prove every word. <b>This does the reading, and "
+    "keeps the proof.</b></div>",
     unsafe_allow_html=True,
 )
-st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
 
 # ── the pipeline, as four numbers that mean something ───────────────────────
-st.markdown("## The pipeline")
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Sources collected", counters["total_sources"],
-          f"+{counters['sources_24h']} today" if counters["sources_24h"] else None)
-c1.caption("Public pages read and stored")
-c2.metric("Analysed", counters["extracted_signals"])
-c2.caption("Facts, quotes and themes extracted")
-c3.metric("Ready to write", counters["opportunities"])
-c3.caption("Themes with enough evidence")
-c4.metric("To review", counters["drafts_pending"])
-c4.caption("Waiting on a human decision")
+st.markdown("## What it found")
+st.markdown(
+    f"<div class='fcie-hero-sub'>Reading <b>{counters['total_sources']}</b> public "
+    f"pages from <b>{counters['distinct_domains']}</b> publishers, grouped into "
+    f"<b>{counters['themes']}</b> themes — <b>{counters['rising_themes']}</b> of them "
+    f"gaining ground.</div>",
+    unsafe_allow_html=True,
+)
+st.markdown("<div style='height:1.1rem'></div>", unsafe_allow_html=True)
 
-st.divider()
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Pages read", counters["total_sources"],
+          f"+{counters['sources_24h']} today" if counters["sources_24h"] else None)
+c1.caption("Collected from the public web")
+c2.metric("Analysed", counters["extracted_signals"])
+c2.caption("Facts and quotes pulled out")
+c3.metric("Worth writing about", counters["opportunities"])
+c3.caption("Themes with real evidence behind them")
+c4.metric("Waiting on you", counters["drafts_pending"])
+c4.caption("Drafts needing a human decision")
 
 # ── the golden path: one worked example, front and centre ───────────────────
 # Nobody evaluating this in two minutes will explore 15 opportunities across 18
@@ -95,41 +99,49 @@ if featured_id:
     if featured:
         opportunity = featured["opportunity"]
         independent = [s for s in featured["sources"] if not s.get("is_promotional")]
-        st.markdown("## Start here — today's strongest opportunity")
-        with st.container(border=True):
-            st.markdown(f"### {opportunity['title']}")
-            chips(
-                chip("sources", str(len(featured["sources"]))),
-                chip("independent publishers", str(len(independent)),
-                     tone="good" if len(independent) >= 3 else "warn"),
-                chip("evidenced points", str(len(opportunity["supporting_points"]))),
-                chip("drafts ready", str(len(featured["drafts"]))),
-                risk_chip(opportunity["risk_score"]),
+        st.markdown("## Today, write about this")
+        st.markdown(
+            "<div class='fcie-hero-sub'>One opportunity, chosen for you. Most "
+            "corroboration, squarely on your market, already taken through to a "
+            "draft.</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"### {opportunity['title']}")
+
+        # The insight, then the line you would actually open with. Two ideas,
+        # full width, nothing competing with them.
+        st.markdown(opportunity["core_insight"] or "—")
+        if opportunity.get("hook"):
+            st.markdown(
+                f"<div class='fcie-evidence'><b>Your opening line.</b> "
+                f"{opportunity['hook']}</div>",
+                unsafe_allow_html=True,
             )
-            g1, g2 = st.columns([2, 1])
-            with g1:
-                st.markdown(f"**The insight.** {opportunity['core_insight'] or '—'}")
-                if opportunity.get("hook"):
-                    st.markdown(f"**Opening line.** {opportunity['hook']}")
-            with g2:
-                st.markdown(score_bar(opportunity["opportunity_score"], "opportunity"),
-                            unsafe_allow_html=True)
-                st.markdown(score_bar(opportunity["confidence_score"], "confidence"),
-                            unsafe_allow_html=True)
-            # A low independent count is not a defect to hide — it is the
-            # system reporting that a narrative is carried mostly by vendors.
-            # Say so here, or the chip just reads as a bad number.
-            if len(independent) < 3:
-                st.caption(
-                    f"⚠️ Only {count_label(len(independent), 'independent publisher')} in "
-                    f"this cluster — the rest is vendor marketing. That is a real finding "
-                    f"about how this narrative is being carried, and it is why the risk "
-                    f"score is what it is. The brief lists it explicitly."
-                )
-            st.caption(
-                "Open **Content Brief** for the full argument, every supporting point "
-                "with its verbatim source passage, the risk notes and the LinkedIn draft →"
+
+        # Four facts, evenly spaced, each labelled in plain words. Previously
+        # five chips ran together into one unreadable string.
+        f1, f2, f3, f4 = st.columns(4)
+        f1.metric("Sources behind it", len(featured["sources"]))
+        f2.metric("Evidenced points", len(opportunity["supporting_points"]))
+        f3.metric("Drafts ready", len(featured["drafts"]))
+        f4.metric("Confidence", f"{opportunity['confidence_score']:.0f}/100")
+
+        # A low independent count is not a defect to hide — it is the system
+        # reporting that a narrative is carried mostly by vendors.
+        if len(independent) < 3:
+            st.markdown(
+                f"<div class='fcie-inference'><b>Worth knowing.</b> Only "
+                f"{count_label(len(independent), 'independent publisher')} in this "
+                f"cluster — the rest is vendor marketing. That is a real finding about "
+                f"how this narrative is being carried, and it is why the risk score "
+                f"reads {opportunity['risk_score']:.0f}/100. The brief lists it "
+                f"explicitly.</div>",
+                unsafe_allow_html=True,
             )
+        st.caption(
+            "Open **Content Brief** for the full argument, every supporting point "
+            "with its verbatim source passage, the risk notes and the LinkedIn draft →"
+        )
 
 st.divider()
 
@@ -137,22 +149,21 @@ st.divider()
 left, right = st.columns([1.45, 1], gap="large")
 
 with left:
-    st.markdown("## What's worth your attention")
+    st.markdown("## What the market is saying")
     st.markdown(
-        "<div class='fcie-muted' style='margin:-.35rem 0 .7rem'>"
-        "The highest-scoring sources that are actually about this market. "
-        "Scored out of 100 on relevance, evidence quality, freshness and novelty — "
-        "open any source to see the full breakdown.</div>",
+        "<div class='fcie-hero-sub' style='margin:-.4rem 0 1rem'>"
+        "The pages most worth your time today, scored on relevance, evidence, "
+        "freshness and novelty. Open any one to see the full breakdown.</div>",
         unsafe_allow_html=True,
     )
-    signals = top_signals(limit=6)
+    signals = top_signals(limit=5)
     if not signals:
         empty_state("No signals extracted yet. Run discovery to populate this view.")
     for signal in signals:
         signal_card(signal)
 
 with right:
-    st.markdown("## Rising themes")
+    st.markdown("## Themes gaining ground")
     themes = themes_dataframe()
     if themes.empty:
         empty_state("No themes computed yet.")
@@ -161,35 +172,30 @@ with right:
         if rising.empty:
             rising = themes.sort_values("source_count", ascending=False).head(5)
             st.caption("No theme has met the rising threshold — showing highest-volume themes.")
-        for _, theme in rising.head(5).iterrows():
+        for _, theme in rising.head(4).iterrows():
             card(
                 title=theme["name"],
-                meta=(f"{count_label(int(theme['source_count']), 'source')} · "
-                      f"{count_label(int(theme['domains']), 'domain')}"),
-                chip_html=(
-                    chip(trend_badge(theme["trend_status"]))
-                    + chip("relevance", f"{theme['avg_relevance']:.1f}/10")
-                    + chip("evidence", f"{theme['avg_evidence']:.1f}/10")
-                ),
+                meta=(f"{count_label(int(theme['source_count']), 'source')} across "
+                      f"{count_label(int(theme['domains']), 'publisher')}"),
+                chip_html=chip(trend_badge(theme["trend_status"])),
             )
         st.caption("Full detail on the Trend Radar page →")
 
-    st.markdown("## Top opportunities")
+    st.markdown("## Also ready to write")
     opportunities = opportunities_list()
     if not opportunities:
         empty_state("No opportunities generated yet.")
-    for opportunity in opportunities[:4]:
+    # Exclude the one already featured above — repeating it here is the kind of
+    # duplication that makes a page feel longer than it is.
+    others = [o for o in opportunities if o["id"] != featured_id][:4]
+    for opportunity in others:
         card(
-            title=truncate_words(opportunity["title"], 16),
+            title=truncate_words(opportunity["title"], 14),
             meta=f"{count_label(opportunity['source_count'], 'source')} · "
                  f"{humanize_label(opportunity['status'])}",
-            chip_html=(
-                score_bar(opportunity["score"], "opportunity")
-                + chip("confidence", f"{opportunity['confidence']:.0f}")
-                + risk_chip(opportunity["risk"])
-            ),
+            chip_html=score_bar(opportunity["score"], "opportunity"),
         )
-    if opportunities:
+    if others:
         st.caption("Review and approve on the Content Pipeline page →")
 
 st.divider()

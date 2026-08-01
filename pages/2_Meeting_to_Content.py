@@ -46,14 +46,10 @@ header(
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
-st.markdown("## Turn a meeting into content")
-st.markdown(
-    "<div class='fcie-hero-sub'>The rest of this system reads the public web. "
-    "This reads the raw material you generate in a day — a call, an interview, a "
-    "podcast — and returns structured notes plus post drafts, with every quote "
-    "checked against the transcript.</div>",
-    unsafe_allow_html=True,
-)
+# The page header already says what this is; a second standfirst underneath it
+# saying the same thing again is the kind of repetition that makes a short page
+# feel long.
+st.markdown("## How it works")
 how_it_works([
     ("Paste a transcript", "A meeting, an interview, a podcast. Nothing is stored."),
     ("Read it for meaning", "Decisions, action items, open questions, quotable lines."),

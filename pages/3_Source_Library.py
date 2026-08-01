@@ -153,19 +153,29 @@ frame = frame.assign(
     )
 )
 
-display = frame[[
-    "id", "title", "domain", "origin", "source_type", "status", "published_at", "theme",
-    "podium_relevance", "evidence_strength", "opportunity_score", "risk_score",
-    "evidence_count", "quote_count", "extraction_method", "url",
-]].rename(columns={
+# Sixteen columns is a database viewer, not a reading surface. Show the seven
+# that answer "what is this and should I care", and put the scoring detail
+# behind a toggle for whoever actually wants it.
+CORE_COLUMNS = {
     "id": "ID", "title": "Title", "domain": "Publisher", "origin": "Written by",
-    "source_type": "Type",
-    "status": "Status", "published_at": "Published", "theme": "Theme",
-    "podium_relevance": "Podium", "evidence_strength": "Evidence",
-    "opportunity_score": "Score", "risk_score": "Risk",
+    "published_at": "Published", "theme": "Topic", "opportunity_score": "Score",
+    "url": "URL",
+}
+DETAIL_COLUMNS = {
+    "source_type": "Type", "status": "Status", "podium_relevance": "Relevance",
+    "evidence_strength": "Evidence", "risk_score": "Risk",
     "evidence_count": "Passages", "quote_count": "Quotes",
-    "extraction_method": "Analyser", "url": "URL",
-})
+    "extraction_method": "Analyser",
+}
+
+show_detail = st.toggle(
+    "Show the scoring detail",
+    value=False,
+    help="Relevance, evidence strength, risk, passage and quote counts, and which "
+         "analyser produced the row.",
+)
+columns = {**CORE_COLUMNS, **DETAIL_COLUMNS} if show_detail else CORE_COLUMNS
+display = frame[list(columns)].rename(columns=columns)
 
 st.dataframe(
     display,

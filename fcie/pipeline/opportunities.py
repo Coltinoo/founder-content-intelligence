@@ -16,14 +16,14 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..ai.client import AIClient
 from ..ai.prompts import load_prompt
 from ..ai.taxonomy import THEMES, contains_phrase
 from ..config import load_config
 from ..db import session_scope
-from ..models import ContentOpportunity, ExtractedSignal, Source, Theme
+from ..models import ContentDraft, ContentOpportunity, ExtractedSignal, Source, Theme
 from ..utils.format import (
     count_label,
     growth_phrase,
@@ -891,6 +891,37 @@ class LLMBriefBuilder:
 # Orchestration
 # ─────────────────────────────────────────────────────────────────────────────
 
+def reconcile_opportunity_statuses() -> int:
+    """Return opportunities marked ``drafting`` that have no drafts to
+    ``ready_for_brief``.
+
+    ``drafting`` is set when a draft is written, so the two can only disagree
+    if drafts were removed underneath it. That is not reachable through the UI
+    — there is no delete control — but it is reachable through the scripts, and
+    the kanban board then shows a card sitting in *Drafting* reading
+    "0 draft(s)", which is the board contradicting itself. Cheap to check on
+    every run, so check it rather than trusting that nobody touches the tables.
+    """
+    moved = 0
+    with session_scope() as session:
+        stranded = session.execute(
+            select(ContentOpportunity).where(ContentOpportunity.status == "drafting")
+        ).scalars().all()
+        for opportunity in stranded:
+            drafts = session.scalar(
+                select(func.count(ContentDraft.id))
+                .where(ContentDraft.content_opportunity_id == opportunity.id)
+            ) or 0
+            if drafts == 0:
+                opportunity.status = "ready_for_brief"
+                session.add(opportunity)
+                moved += 1
+    if moved:
+        log.info("Reconciled %d opportunity status(es) from drafting to ready_for_brief.",
+                 moved)
+    return moved
+
+
 def generate_opportunities(
     *,
     theme_names: list[str] | None = None,
@@ -904,6 +935,7 @@ def generate_opportunities(
     use_llm = client.available and not force_heuristic
     report = OpportunityReport(backend=cfg.ai.model if use_llm else "heuristic-v1")
     limit = max_opportunities or cfg.pipeline.max_opportunities_per_run
+    reconcile_opportunity_statuses()
 
     def emit(message: str) -> None:
         log.info(message)

@@ -24,12 +24,20 @@ from ..utils.format import (
     truncate_words,
 )
 
-# Palette taken from Podium's own published design tokens (the `--token-*` custom
-# properties on podium.com): the #18181C near-black spine, the periwinkle blue
-# ramp, the sage/olive secondary, and their warm and red ramps. Read off the live
-# stylesheet rather than eyeballed, so the app looks like it belongs in front of
-# this particular company. It deliberately borrows no logo, wordmark or layout —
-# the disclaimer at the top of every page says whose project this is.
+# Visual language read off podium.com/product/ai-employee rather than eyeballed:
+# the warm #1C1D18 ink, the #FAFAF7 / #F8F5F0 cream surfaces, the #AF4E30
+# terracotta accent, the sage and gold secondaries, headings at weight 500 with
+# normal tracking, and the teal → sage → gold ombre they clip to display text.
+#
+# It borrows no logo or wordmark. The disclaimer at the top of every page says
+# whose project this is, and a trademark on a live public URL would undercut
+# that faster than the disclaimer could repair it.
+#
+# The ombre stops are deepened. Podium's exact gradient is
+# `#749094 → #858E62 → #E1A660`, and that gold measures 2.04:1 on cream — fine
+# for the 120px display number they use it on, unreadable at headline size.
+# `#4E6B70 → #5D6345 → #B08A4E` is the same journey with every stop at or above
+# the 3:1 large-text floor.
 #
 # Two rules learned the hard way and enforced by tests:
 #
@@ -41,9 +49,10 @@ from ..utils.format import (
 #   2. Always set colour and background together. Inheriting one from Streamlit
 #      and setting the other is what caused that bug.
 #
-# No color-mix(), no variables, no gradients. Every text/background pair here is
-# asserted against the 4.5:1 WCAG AA floor in tests/test_database.py; the worst
-# pair measures 5.54:1. If you change a colour, change the test.
+# No color-mix(), no variables. Gradients appear only as decoration on display
+# text, never as the sole carrier of meaning. Every text/background pair here is
+# asserted against the 4.5:1 WCAG AA floor in tests/test_database.py. If you
+# change a colour, change the test.
 BASE_CSS = """
 <style>
   /* Typeface is set in .streamlit/config.toml, not here — Streamlit's own font
@@ -54,23 +63,42 @@ BASE_CSS = """
 
   /* Type scale borrowed from product-marketing pages rather than dashboards:
      one confident headline, a readable sub, and body text at a size meant for
-     reading. Sections are separated by whitespace, not boxes — the previous
-     version drew a border around almost everything and the eye had nowhere to
-     rest. */
-  h1 {font-size: 2.9rem !important; font-weight: 700; color: #18181C;
-      letter-spacing: -0.035em; line-height: 1.1;
-      margin: 0 0 0.5rem !important;}
-  h2 {font-size: 1.6rem !important; font-weight: 700; color: #18181C;
-      letter-spacing: -0.02em; line-height: 1.25;
+     reading. Sections are separated by whitespace, not boxes.
+
+     Podium sets headings at weight 500 with normal tracking, not bold and
+     tight. It reads editorial rather than dashboard, and it is why their pages
+     feel calm at 72px. The weights need !important: Streamlit's own heading
+     rules outrank this stylesheet, and marking only font-size left every
+     heading rendering at 700. */
+  h1 {font-size: 3.1rem !important; font-weight: 500 !important; color: #1C1D18;
+      letter-spacing: -0.015em; line-height: 1.08;
+      margin: 0 0 0.6rem !important;}
+  h2 {font-size: 1.7rem !important; font-weight: 500 !important; color: #1C1D18;
+      letter-spacing: -0.005em; line-height: 1.25;
       margin: 3.4rem 0 1rem !important;}
-  h3 {font-size: 1.15rem !important; font-weight: 650; color: #18181C;
-      letter-spacing: -0.01em; margin: 1.4rem 0 0.4rem !important;}
-  p, li {font-size: 1.02rem; line-height: 1.75; color: #18181C;}
-  a {color: #38549C;}
+  h3 {font-size: 1.2rem !important; font-weight: 550 !important; color: #1C1D18;
+      margin: 1.4rem 0 0.4rem !important;}
+  p, li {font-size: 1.02rem; line-height: 1.75; color: #1C1D18;}
+  a {color: #AF4E30;}
+
+  /* The ombre. Decoration only — the text stays legible with the gradient
+     stripped, and no meaning is carried by colour alone. -webkit- prefixes are
+     required: Safari and Chrome both still need them for background-clip. */
+  .fcie-ombre {
+    background-image: linear-gradient(96deg, #4E6B70 12%, #5D6345 52%, #B08A4E 96%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: #4E6B70;
+    display: inline-block;
+  }
+
+  .fcie-wordmark {
+    font-size: 1.22rem; font-weight: 500; line-height: 1.2; color: #1C1D18;
+    letter-spacing: -0.015em; margin: 0 0 0.35rem;
+  }
 
   /* The standfirst under a page title: what this page is for, in one line. */
   .fcie-hero-sub {
-    font-size: 1.05rem; line-height: 1.7; color: #4A4A4D;
+    font-size: 1.05rem; line-height: 1.7; color: #4E4A44;
     max-width: 44rem; margin: 0 0 0.4rem;
   }
 
@@ -83,34 +111,34 @@ BASE_CSS = """
   }
   .fcie-step {
     flex: 1 1 12rem; min-width: 11rem;
-    border-top: 2px solid #E8E8ED; padding-top: 0.7rem;
+    border-top: 2px solid #E0DACF; padding-top: 0.7rem;
   }
   .fcie-step__n {
     display: inline-block; font-size: 0.72rem; font-weight: 700;
-    color: #4565B6; background: #E0E9FC; border-radius: 999px;
+    color: #AF4E30; background: #F8F5F0; border-radius: 999px;
     width: 1.35rem; height: 1.35rem; line-height: 1.35rem; text-align: center;
     margin-bottom: 0.35rem;
   }
   .fcie-step__t {
-    font-size: 0.98rem; font-weight: 650; color: #18181C; margin-bottom: 0.2rem;
+    font-size: 0.98rem; font-weight: 600; color: #1C1D18; margin-bottom: 0.2rem;
   }
-  .fcie-step__d {font-size: 0.86rem; line-height: 1.6; color: #4A4A4D;}
+  .fcie-step__d {font-size: 0.86rem; line-height: 1.6; color: #4E4A44;}
 
   /* A single quiet fact, set apart. Used for the "why you need it" line. */
   .fcie-pull {
-    border-top: 1px solid #E8E8ED; border-bottom: 1px solid #E8E8ED;
+    border-top: 1px solid #E0DACF; border-bottom: 1px solid #E0DACF;
     padding: 1.5rem 0; margin: 2.2rem 0;
-    font-size: 1.2rem; line-height: 1.6; color: #18181C; font-weight: 500;
+    font-size: 1.2rem; line-height: 1.6; color: #1C1D18; font-weight: 500;
     letter-spacing: -0.01em; max-width: 46rem;
   }
   .fcie-pull b {font-weight: 700;}
 
-  [data-testid="stMetricValue"] {font-size: 2rem; font-weight: 700; color: #18181C;}
-  [data-testid="stMetricLabel"] {font-size: 0.82rem; color: #626265; font-weight: 600;}
+  [data-testid="stMetricValue"] {font-size: 2.1rem; font-weight: 500; color: #1C1D18;}
+  [data-testid="stMetricLabel"] {font-size: 0.82rem; color: #4E4A44; font-weight: 600;}
 
   .fcie-disclaimer {
-    font-size: 0.76rem; color: #4A4A4D; background: #F4F4F7;
-    border-left: 3px solid #DCDCE1; border-radius: 0 8px 8px 0;
+    font-size: 0.76rem; color: #4E4A44; background: #F8F5F0;
+    border-left: 3px solid #E0DACF; border-radius: 0 8px 8px 0;
     padding: 0.55rem 0.85rem; margin: 0.6rem 0 1.5rem; line-height: 1.55;
   }
 
@@ -119,63 +147,63 @@ BASE_CSS = """
   .fcie-chip {
     display: inline-block; font-size: 0.74rem; font-weight: 600; line-height: 1.4;
     padding: 0.22rem 0.62rem; border-radius: 999px; margin: 0 0.35rem 0.35rem 0;
-    white-space: nowrap; background: #F4F4F7; color: #4A4A4D; border: 1px solid #E8E8ED;
+    white-space: nowrap; background: #F8F5F0; color: #4E4A44; border: 1px solid #E0DACF;
   }
-  .fcie-chip b {color: #18181C; font-weight: 700;}
+  .fcie-chip b {color: #1C1D18; font-weight: 700;}
   .fcie-chip--good   {background: #F3F4EF; color: #434832; border-color: #CDD1BF;}
   .fcie-chip--warn   {background: #F9F4EB; color: #5C4F3A; border-color: #EEE0CA;}
-  .fcie-chip--bad    {background: #F0DCDC; color: #862525; border-color: #D2A1A1;}
-  .fcie-chip--accent {background: #E0E9FC; color: #38549C; border-color: #C2D2F9;}
+  .fcie-chip--bad    {background: #F7E9E4; color: #8F3D24; border-color: #E0BCAE;}
+  .fcie-chip--accent {background: #FAF1ED; color: #AF4E30; border-color: #EACFC3;}
 
   /* Cards — white surface, dark text, always. */
   .fcie-card {
-    border: 1px solid #E8E8ED; border-radius: 10px; background: #FFFFFF;
+    border: 1px solid #E0DACF; border-radius: 10px; background: #FFFFFF;
     padding: 1rem 1.1rem; margin-bottom: 0.75rem;
   }
-  .fcie-card__title {font-size: 1rem; font-weight: 650; line-height: 1.45;
-                     color: #18181C; margin-bottom: 0.3rem;}
-  .fcie-card__title a {color: #18181C; text-decoration: none;}
-  .fcie-card__title a:hover {color: #38549C; text-decoration: underline;}
-  .fcie-card__meta {font-size: 0.79rem; color: #626265; margin-bottom: 0.55rem;}
-  .fcie-card__body {font-size: 0.92rem; line-height: 1.62; color: #4A4A4D;
+  .fcie-card__title {font-size: 1rem; font-weight: 600; line-height: 1.45;
+                     color: #1C1D18; margin-bottom: 0.3rem;}
+  .fcie-card__title a {color: #1C1D18; text-decoration: none;}
+  .fcie-card__title a:hover {color: #AF4E30; text-decoration: underline;}
+  .fcie-card__meta {font-size: 0.79rem; color: #4E4A44; margin-bottom: 0.55rem;}
+  .fcie-card__body {font-size: 0.92rem; line-height: 1.62; color: #4E4A44;
                     margin: 0.4rem 0 0.6rem;}
 
   /* Score bar — the number leads, the bar makes it comparable. */
   .fcie-score {display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0;}
-  .fcie-score__num {font-size: 1.15rem; font-weight: 700; color: #18181C; min-width: 2.4rem;}
-  .fcie-score__track {flex: 1; height: 7px; border-radius: 999px; background: #E8E8ED;}
-  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #4565B6;}
-  .fcie-score__label {font-size: 0.76rem; color: #626265; min-width: 5.5rem;}
+  .fcie-score__num {font-size: 1.15rem; font-weight: 600; color: #1C1D18; min-width: 2.4rem;}
+  .fcie-score__track {flex: 1; height: 7px; border-radius: 999px; background: #EDE7DD;}
+  .fcie-score__fill {display: block; height: 100%; border-radius: 999px; background: #AF4E30;}
+  .fcie-score__label {font-size: 0.76rem; color: #4E4A44; min-width: 5.5rem;}
 
   /* The one distinction that matters: quoted fact vs our interpretation.
      Blue rule = something a source actually said. Warm rule = our reading of
      it. Two of Podium's own ramps, doing one job each. */
   .fcie-evidence {
-    border-left: 3px solid #4565B6; background: #F5F8FF; color: #18181C;
+    border-left: 3px solid #4E6B70; background: #F4F7F7; color: #1C1D18;
     padding: 0.7rem 0.9rem; margin: 0.6rem 0; font-size: 0.94rem;
     line-height: 1.65; border-radius: 0 8px 8px 0;
   }
   .fcie-inference {
-    border-left: 3px solid #CF9D4E; background: #FCFAF5; color: #18181C;
+    border-left: 3px solid #B08A4E; background: #FCFAF5; color: #1C1D18;
     padding: 0.7rem 0.9rem; margin: 0.6rem 0; font-size: 0.94rem;
     line-height: 1.65; border-radius: 0 8px 8px 0;
   }
-  .fcie-srcline {font-size: 0.76rem; color: #626265; margin-top: 0.45rem;}
-  .fcie-srcline a {color: #38549C;}
+  .fcie-srcline {font-size: 0.76rem; color: #4E4A44; margin-top: 0.45rem;}
+  .fcie-srcline a {color: #AF4E30;}
 
-  .fcie-muted {font-size: 0.85rem; color: #626265;}
-  .fcie-lead  {font-size: 1.1rem; line-height: 1.75; color: #18181C;}
+  .fcie-muted {font-size: 0.85rem; color: #4E4A44;}
+  .fcie-lead  {font-size: 1.1rem; line-height: 1.75; color: #1C1D18;}
 
   section[data-testid="stSidebar"] .fcie-status {
     display: flex; justify-content: space-between; align-items: baseline;
-    font-size: 0.8rem; padding: 0.32rem 0; border-bottom: 1px solid #E8E8ED;
-    color: #18181C;
+    font-size: 0.8rem; padding: 0.32rem 0; border-bottom: 1px solid #E0DACF;
+    color: #1C1D18;
   }
   section[data-testid="stSidebar"] .fcie-status span:last-child {
-    color: #626265; text-align: right; margin-left: 0.5rem;
+    color: #4E4A44; text-align: right; margin-left: 0.5rem;
   }
 
-  hr {margin: 1.4rem 0; border-color: #E8E8ED;}
+  hr {margin: 1.4rem 0; border-color: #E0DACF;}
 
   /* Primary buttons. Streamlit paints the fill from theme.primaryColor but takes
      the label from theme.textColor, so it put #18181C ink on the blue fill —
@@ -185,11 +213,11 @@ BASE_CSS = """
      inherits Streamlit's colour, so it needs saying twice. */
   button[data-testid="stBaseButton-primary"],
   button[data-testid="stBaseButton-primary"] p {
-    background: #4565B6; color: #FFFFFF; border-color: #4565B6;
+    background: #AF4E30; color: #FFFFFF; border-color: #AF4E30;
   }
   button[data-testid="stBaseButton-primary"]:hover,
   button[data-testid="stBaseButton-primary"]:hover p {
-    background: #38549C; color: #FFFFFF; border-color: #38549C;
+    background: #8F3D24; color: #FFFFFF; border-color: #8F3D24;
   }
 
   /* Streamlit labels the entry-point page in the sidebar from its filename, so
@@ -282,6 +310,26 @@ def how_it_works(steps: list[tuple[str, str]]) -> None:
     st.markdown(f"<div class='fcie-steps'>{cells}</div>", unsafe_allow_html=True)
 
 
+def hero(title: str, accent: str, subtitle: str = "") -> None:
+    """A headline whose closing phrase carries the ombre.
+
+    ``accent`` is rendered with the teal → sage → gold gradient clipped to the
+    glyphs, the treatment Podium uses on display text. It is decoration only:
+    the sentence reads identically with the gradient stripped, and the fallback
+    ``color`` on the class keeps the words legible in any renderer that does not
+    support ``background-clip: text``.
+    """
+    st.markdown(
+        f"<h1>{title} <span class='fcie-ombre'>{accent}</span></h1>",
+        unsafe_allow_html=True,
+    )
+    if subtitle:
+        st.markdown(f"<div class='fcie-hero-sub'>{subtitle}</div>",
+                    unsafe_allow_html=True)
+    st.markdown(f'<div class="fcie-disclaimer">{DISCLAIMER}</div>',
+                unsafe_allow_html=True)
+
+
 def header(title: str, subtitle: str = "") -> None:
     """Page title and its one-line purpose.
 
@@ -319,7 +367,14 @@ def sidebar_status() -> None:
     click away, for whoever asks how it was built.
     """
     with st.sidebar:
-        st.markdown("### Founder Content Intelligence")
+        # A wordmark for *this project*, set in Podium's visual language. No
+        # Podium logo: on a live public URL a trademark reads as endorsement,
+        # which is the one thing the disclaimer on every page exists to deny.
+        st.markdown(
+            "<div class='fcie-wordmark'>Founder Content<br>"
+            "<span class='fcie-ombre'>Intelligence</span></div>",
+            unsafe_allow_html=True,
+        )
         st.caption("Public signals → evidence-linked founder content")
         st.divider()
         st.caption(
@@ -396,9 +451,9 @@ def score_bar(score: float | None, label: str = "opportunity",
     pct = max(0.0, min(100.0, value / maximum * 100.0))
     colour = {
         "good": "#5D6345",    # sage
-        "warn": "#CF9D4E",    # warm
-        "bad": "#A54848",     # red
-    }.get(tone or "", "#4565B6")  # periwinkle — Podium's primary
+        "warn": "#B08A4E",    # gold
+        "bad": "#AF4E30",     # terracotta
+    }.get(tone or "", "#AF4E30")  # terracotta — Podium's lead accent
     return (
         f'<div class="fcie-score">'
         f'<span class="fcie-score__num">{value:.0f}</span>'

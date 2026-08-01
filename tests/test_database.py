@@ -1437,22 +1437,52 @@ class TestTextContrast:
     # body text; large text and chips are held to the same bar deliberately.
     # Colours are Podium's own published design tokens — see BASE_CSS.
     PAIRS = [
-        ("body text", "#18181C", "#FFFFFF", 4.5),
-        ("card body", "#4A4A4D", "#FFFFFF", 4.5),
-        ("muted text", "#626265", "#FFFFFF", 4.5),
-        ("muted on surface", "#626265", "#F4F4F7", 4.5),
-        ("disclaimer", "#4A4A4D", "#F4F4F7", 4.5),
-        ("chip neutral", "#4A4A4D", "#F4F4F7", 4.5),
-        ("chip accent", "#38549C", "#E0E9FC", 4.5),
+        ("body text", "#1C1D18", "#FFFFFF", 4.5),
+        ("card body", "#4E4A44", "#FFFFFF", 4.5),
+        ("muted on cream", "#4E4A44", "#F8F5F0", 4.5),
+        ("disclaimer", "#4E4A44", "#F8F5F0", 4.5),
+        ("chip neutral", "#4E4A44", "#F8F5F0", 4.5),
+        ("chip accent", "#AF4E30", "#FAF1ED", 4.5),
         ("chip good", "#434832", "#F3F4EF", 4.5),
         ("chip warn", "#5C4F3A", "#F9F4EB", 4.5),
-        ("chip bad", "#862525", "#F0DCDC", 4.5),
-        ("evidence block", "#18181C", "#F5F8FF", 4.5),
-        ("inference block", "#18181C", "#FCFAF5", 4.5),
-        ("link", "#38549C", "#FFFFFF", 4.5),
-        ("primary button", "#FFFFFF", "#4565B6", 4.5),
-        ("primary button hover", "#FFFFFF", "#38549C", 4.5),
+        ("chip bad", "#8F3D24", "#F7E9E4", 4.5),
+        ("evidence block", "#1C1D18", "#F4F7F7", 4.5),
+        ("inference block", "#1C1D18", "#FCFAF5", 4.5),
+        ("step number", "#AF4E30", "#F8F5F0", 4.5),
+        ("link", "#AF4E30", "#FFFFFF", 4.5),
+        ("primary button", "#FFFFFF", "#AF4E30", 4.5),
+        ("primary button hover", "#FFFFFF", "#8F3D24", 4.5),
     ]
+
+    # The ombre is decoration on display text, so the 3:1 large-text floor
+    # applies rather than 4.5:1. Podium's own gold stop (#E1A660) measures
+    # 2.04:1 and would fail this — these are the deepened equivalents.
+    OMBRE_STOPS = [
+        ("ombre teal", "#4E6B70", "#FFFFFF", 3.0),
+        ("ombre sage", "#5D6345", "#FFFFFF", 3.0),
+        ("ombre gold", "#B08A4E", "#FFFFFF", 3.0),
+    ]
+
+    def test_ombre_stops_meet_the_large_text_floor(self):
+        for label, foreground, background, floor in self.OMBRE_STOPS:
+            ratio = self._ratio(foreground, background)
+            assert ratio >= floor, (
+                f"{label}: {foreground} on {background} is {ratio:.2f}:1, "
+                f"below the {floor}:1 large-text floor"
+            )
+
+    def test_the_ombre_never_carries_meaning_alone(self):
+        """Gradient text must stay readable if background-clip is unsupported."""
+        import pathlib
+        import re
+
+        css = pathlib.Path("fcie/ui/components.py").read_text(encoding="utf-8")
+        block = re.search(r"\.fcie-ombre\s*\{(.*?)\}", css, re.S)
+        assert block, ".fcie-ombre rule not found"
+        assert "color:" in block.group(1), (
+            "the ombre needs a solid `color` fallback — without it, a renderer "
+            "that ignores background-clip:text paints the glyphs transparent"
+        )
 
     def test_palette_meets_wcag_aa(self):
         for label, foreground, background, floor in self.PAIRS:

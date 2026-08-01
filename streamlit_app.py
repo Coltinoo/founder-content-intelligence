@@ -23,7 +23,7 @@ from fcie.ui.components import (
     card,
     chip,
     empty_state,
-    header,
+    hero,
     how_it_works,
     page_setup,
     run_pipeline_widget,
@@ -41,8 +41,9 @@ sidebar_status()
 cfg = load_config()
 counters = dashboard_counters()
 
-header(
-    "Know what to say next.",
+hero(
+    "Know what to",
+    "say next.",
     "Founder Content Intelligence reads the public web every day and turns what "
     "it finds into founder-ready content briefs — where every single claim links "
     "back to the source it came from.",

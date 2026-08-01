@@ -9,15 +9,14 @@
 
 [theme]
 base = "light"
-# #4565B6 rather than the brighter #4B79ED further up Podium's blue ramp:
-# Streamlit derives button label colour from this value, and on #4B79ED it
-# chose dark ink, giving 4.43:1 — just under the AA floor. #4565B6 is dark
-# enough that it picks white, which measures 5.54:1. The rest of the app's
-# accents use the same value so there are not two blues an inch apart.
-primaryColor = "#4565B6"
+# Terracotta — the accent Podium leads with on the AI Employee page. Streamlit
+# derives widget accents from this; the primary button's label is set explicitly
+# in components.py because Streamlit takes it from textColor and would put dark
+# ink on the fill. White on #AF4E30 measures 5.31:1.
+primaryColor = "#AF4E30"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F4F4F7"
-textColor = "#18181C"
+secondaryBackgroundColor = "#F8F5F0"
+textColor = "#1C1D18"
 # Podium sets Graphik, which is proprietary. Inter is their own declared
 # fallback and the closest freely available face. Set here rather than in CSS
 # because Streamlit's own font rules outrank a stylesheet appended to the page —

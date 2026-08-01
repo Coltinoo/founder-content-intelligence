@@ -11,6 +11,7 @@ why it is available in the public read-only demo. Nothing here mutates state.
 from __future__ import annotations
 
 import pathlib
+import re
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -19,27 +20,32 @@ from fcie.db import init_db
 from fcie.pipeline.brief_export import brief_to_markdown, build_daily_brief
 from fcie.pipeline.meetings import analyse_transcript, notes_to_markdown
 from fcie.queries import (
-    BRIEF_WINDOWS,
     best_brief_window,
     featured_opportunity_id,
     opportunities_list,
     opportunity_detail,
 )
 from fcie.ui.components import (
-    admin,
     empty_state,
     evidence_block,
     header,
     how_it_works,
     inference_block,
     page_setup,
-    risk_badge,
-    score_bar,
     sidebar_status,
 )
-from fcie.utils.format import count_label, relative_time
+from fcie.utils.format import count_label
 
 SAMPLE_PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "sample_meeting.txt"
+
+
+def _same_text(left: str, right: str) -> bool:
+    """Whether two strings say the same thing, ignoring punctuation and case."""
+    def normalise(text: str) -> str:
+        return re.sub(r"[^a-z0-9 ]+", "", (text or "").lower()).strip()
+
+    return normalise(left) == normalise(right)
+
 
 page_setup("Daily Brief", "📄")
 init_db()
@@ -266,7 +272,11 @@ with tab_meeting:
                 for row in notes.decisions:
                     st.markdown(f"**{row['decision']}**"
                                 + (f"  \n*{row['owner']}*" if row["owner"] else ""))
-                    if row["quote"]:
+                    # When the model lifts the decision straight out of the
+                    # transcript, `decision` and `quote` come back identical and
+                    # the same sentence renders twice. Show the quote only when
+                    # it adds something.
+                    if row["quote"] and not _same_text(row["quote"], row["decision"]):
                         st.markdown(
                             f"<div class='fcie-evidence'>{row['quote']}</div>",
                             unsafe_allow_html=True,

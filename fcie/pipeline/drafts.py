@@ -20,7 +20,7 @@ from sqlalchemy import select
 from ..ai.client import AIClient
 from ..ai.prompts import load_prompt
 from ..db import session_scope
-from ..models import ContentDraft, ContentOpportunity, Source
+from ..models import DRAFT_FORMATS, ContentDraft, ContentOpportunity, Source
 from ..utils.text import sentences, truncate, word_count
 from .opportunities import _voice_guide_text
 from .voice import build_voice_guide
@@ -631,7 +631,18 @@ class HeuristicDraftWriter:
 
 def generate_draft(opportunity_id: int, content_type: str = "linkedin_post",
                    *, force_heuristic: bool = False) -> dict:
-    """Generate, audit, and store one draft. Returns a UI-ready summary."""
+    """Generate, audit, and store one draft. Returns a UI-ready summary.
+
+    ``content_type`` must be one of ``DRAFT_FORMATS``. The outline prompt keys
+    its shape guidance off the format name, so an unrecognised one is not a
+    harmless passthrough — the model gets no shape at all and returns a generic
+    outline under whatever label was asked for. Reject it here rather than
+    storing a draft that is mislabelled to whoever reads it.
+    """
+    if content_type not in DRAFT_FORMATS:
+        return {"ok": False,
+                "error": f"Unknown draft format {content_type!r}. "
+                         f"Expected one of: {', '.join(DRAFT_FORMATS)}."}
     with session_scope() as session:
         opportunity = session.get(ContentOpportunity, opportunity_id)
         if opportunity is None:

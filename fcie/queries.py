@@ -458,6 +458,9 @@ def opportunities_list(statuses: list[str] | None = None) -> list[dict]:
     return out
 
 
+FEATURED_MIN_RELEVANCE = 6.0
+
+
 def featured_opportunity_id() -> int | None:
     """The single opportunity to lead with — the "golden path".
 
@@ -471,6 +474,14 @@ def featured_opportunity_id() -> int | None:
     four independent outlets with a draft attached, because the second one shows
     the whole pipeline working. The weighting below encodes that: corroboration
     breadth and having a draft matter as much as the score itself.
+
+    It is also not enough to be *well evidenced*. An earlier version of this
+    ranking led with "Skepticism Around AI Claims is Growing" — nine
+    independent sources, low risk, three clean supporting points, and entirely
+    about LinkedIn and Snapchat labelling AI posts. Immaculate evidence for a
+    market Podium is not in. Mean Podium relevance is therefore a gate before
+    it is a weight: a brief the founder could not credibly speak to is not a
+    demonstration of anything, however well corroborated.
     """
     best_id, best_rank = None, float("-inf")
     with session_scope() as session:
@@ -498,10 +509,17 @@ def featured_opportunity_id() -> int | None:
                 select(func.count(ContentDraft.id))
                 .where(ContentDraft.content_opportunity_id == opportunity.id)
             ) or 0
+            relevance = session.scalar(
+                select(func.avg(ExtractedSignal.podium_relevance))
+                .where(ExtractedSignal.source_id.in_(source_ids))
+            ) or 0.0
+            if relevance < FEATURED_MIN_RELEVANCE:
+                continue
 
             rank = (
                 (opportunity.opportunity_score or 0) * 0.30
                 + (opportunity.confidence_score or 0) * 0.25
+                + relevance * 4                  # on Podium's actual market
                 + min(domains, 5) * 8            # corroboration breadth
                 + min(independent, 4) * 6        # not just vendor pages
                 + min(points, 5) * 4             # a brief you can actually read

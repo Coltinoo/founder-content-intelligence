@@ -10,6 +10,7 @@ from fcie.db import init_db
 from fcie.pipeline.brief_export import brief_to_markdown, build_daily_brief
 from fcie.queries import BRIEF_WINDOWS, best_brief_window
 from fcie.ui.components import (
+    admin,
     empty_state,
     evidence_block,
     format_date,
@@ -67,6 +68,7 @@ st.markdown("## Most important new sources")
 if not brief["new_sources"]:
     empty_state(
         f"No sources discovered in the last {lookback} hours.",
+        "Widen the window above." if not admin() else
         "Run discovery from the Executive Dashboard, or widen the window.",
     )
 for source in brief["new_sources"]:

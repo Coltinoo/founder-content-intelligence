@@ -28,20 +28,22 @@ It does not summarise articles. For each cluster of signals it answers: *why doe
 
 ### What is actually in the shipped database
 
-Produced by a real run (`python scripts/report_deliverables.py`), with **no LLM key configured** — the deterministic backend did all of it. **The complete pipeline — 91 candidate fetches, extraction, trends, briefs, watchlist — finished in 2 minutes 36 seconds**, because fetching is concurrent across unrelated hosts while each host keeps its polite per-domain delay:
+Produced by a real run (`python scripts/report_deliverables.py`), analysed with `gpt-4o-mini`. **The crawl stage — candidate fetches, extraction, trends, briefs, watchlist — finished in 2 minutes 36 seconds**, because fetching is concurrent across unrelated hosts while each host keeps its polite per-domain delay:
 
 | | |
 |---|---|
-| Sources | **86** across **22 distinct domains** (32 Podium first-party, 54 RSS) |
-| Extracted signals | **70** |
-| Verbatim evidence passages | **301** — every one re-verified against its source before the write |
-| Verbatim quotes | **92** · numerical claims **210**, all flagged for verification |
-| Themes | **18** — 1 rising, 13 emerging, 3 saturated, **1 `low_confidence`** |
-| Content opportunities | **10** promoted (8 themes evaluated and skipped, with reasons) |
-| Drafts | **12** across 6 formats, all `pending_review` |
-| Access-restricted, not bypassed | **15** · deferred to honour a host's crawl-delay: **3** |
+| Sources | **166** across **60 distinct domains** (81 RSS, 51 web search, 34 Podium first-party) |
+| Extracted signals | **129** |
+| Verbatim evidence passages | **147** — every one re-verified against its source before the write |
+| Verbatim quotes | **65** · numerical claims **290**, all flagged for verification |
+| Themes | **18** — 2 rising, 7 emerging, 6 saturated, 1 stable, **2 `low_confidence`** |
+| Content opportunities | **16** promoted (6 themes evaluated and skipped, with reasons) |
+| Drafts | **9**, all `pending_review` |
+| Access-restricted, not bypassed | **35** |
 
-The `low_confidence` label is the point, not a gap: *Speed to lead* has multiple sources but from **1 domain**, so the system refuses to call it a trend.
+The `low_confidence` label is the point, not a gap: *Customer reactivation* and *Human-to-AI handoffs* each rest on **1 source from 1 domain**, so the system refuses to call either a trend.
+
+The counts above move with every run. The claim worth checking is not the totals — it is that **147 of 147** stored passages verified verbatim against their source text, because the ones that did not verify were discarded rather than stored.
 
 ---
 

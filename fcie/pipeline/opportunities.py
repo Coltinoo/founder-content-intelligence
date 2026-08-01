@@ -758,6 +758,42 @@ class HeuristicBriefBuilder:
 # LLM brief builder
 # ─────────────────────────────────────────────────────────────────────────────
 
+_MIN_PASSAGE_OVERLAP = 40
+
+
+def _normalise_passage(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip().lower()
+
+
+def _match_stored_passage(passage: str, candidates: list[dict]) -> dict | None:
+    """Find the stored verbatim passage an LLM-cited passage refers to.
+
+    Matching used to require an exact string hit or an 80-character prefix.
+    Models reflow whitespace, trim a trailing clause, or quote from the middle
+    of a passage, so well-evidenced points were being dropped for cosmetic
+    reasons — most briefs came out with two supporting points when the model
+    had supplied five.
+
+    Loosening the *match* does not loosen the verbatim guarantee: the caller
+    writes ``matched["passage"]`` — the text as stored from the source — never
+    the model's rendering of it. The only failure mode a looser match creates
+    is attaching a point to the wrong passage, so require a substantial overlap
+    rather than an incidental one.
+    """
+    needle = _normalise_passage(passage)
+    if len(needle) < _MIN_PASSAGE_OVERLAP:
+        return None
+    for candidate in candidates:
+        haystack = _normalise_passage(candidate.get("passage", ""))
+        if not haystack:
+            continue
+        if needle in haystack or (
+            len(haystack) >= _MIN_PASSAGE_OVERLAP and haystack in needle
+        ):
+            return candidate
+    return None
+
+
 class LLMBriefBuilder:
     def __init__(self, client: AIClient, config=None):
         self.client = client
@@ -809,13 +845,9 @@ class LLMBriefBuilder:
                 continue
             ids = [i for i in (item.get("evidence_source_ids") or []) if i in valid_ids]
             passage = item.get("evidence_passage") or ""
-            matched = passage_index.get(passage)
-            if not matched:
-                matched = next(
-                    (p for p in evidence.passages
-                     if passage and passage[:80].lower() in p["passage"].lower()),
-                    None,
-                )
+            matched = passage_index.get(passage) or _match_stored_passage(
+                passage, evidence.passages
+            )
             if not ids or not matched:
                 continue
             points.append({

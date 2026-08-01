@@ -216,7 +216,12 @@ with c2:
         st.rerun()
 
 if signal is None:
-    st.info("This source has not been analysed yet. Press *Reprocess this source*.")
+    st.info(
+        "This source is stored but has not been analysed — usually too little body "
+        "text to extract anything from, or the crawl policy stopped at the summary."
+        if not admin() else
+        "This source has not been analysed yet. Press *Reprocess this source*."
+    )
     if metadata.get("extraction_skipped_reason"):
         st.caption(f"Reason: {metadata['extraction_skipped_reason']}")
 else:

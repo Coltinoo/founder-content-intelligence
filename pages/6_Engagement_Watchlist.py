@@ -46,7 +46,9 @@ items = [
 if not items:
     empty_state(
         "The watchlist is empty for these filters.",
-        "Press *Rebuild watchlist* after running discovery.",
+        "Widen the *Review status* or *Priority* filters above."
+        if not admin() else
+        "Widen the filters above, or press *Rebuild watchlist* after running discovery.",
     )
     st.stop()
 

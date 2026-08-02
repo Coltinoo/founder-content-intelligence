@@ -123,6 +123,8 @@ class Credentials:
     google_cse_key: str | None = None
     google_cse_cx: str | None = None
     youtube_api_key: str | None = None
+    reddit_client_id: str | None = None
+    reddit_client_secret: str | None = None
     database_url: str | None = None
 
     @classmethod
@@ -138,6 +140,8 @@ class Credentials:
             google_cse_key=g("GOOGLE_CSE_API_KEY"),
             google_cse_cx=g("GOOGLE_CSE_CX"),
             youtube_api_key=g("YOUTUBE_API_KEY"),
+            reddit_client_id=g("REDDIT_CLIENT_ID"),
+            reddit_client_secret=g("REDDIT_CLIENT_SECRET"),
             database_url=g("FCIE_DATABASE_URL"),
         )
 
@@ -148,6 +152,10 @@ class Credentials:
     @property
     def has_youtube_api(self) -> bool:
         return bool(self.youtube_api_key)
+
+    @property
+    def has_reddit_api(self) -> bool:
+        return bool(self.reddit_client_id and self.reddit_client_secret)
 
     @property
     def search_provider(self) -> str | None:
@@ -263,6 +271,11 @@ class AppConfig:
     def social_discovery(self) -> dict[str, Any]:
         """Public-social discovery settings. See the note in config/sources.yaml."""
         return self.sources.get("social_discovery", {}) or {}
+
+    @property
+    def reddit_discovery(self) -> dict[str, Any]:
+        """Reddit channel settings. See the note in fcie/connectors/reddit.py."""
+        return self.sources.get("reddit_discovery", {}) or {}
 
     @property
     def podium_sections(self) -> list[dict[str, Any]]:

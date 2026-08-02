@@ -40,19 +40,68 @@ first_party_domains:
 # richer than this needs a human to paste it, or an official platform API.
 social_discovery:
   enabled: true
-  results_per_query: 6
+  # Yield is the binding constraint here, not cost: most hits are filtered out
+  # for age or for not being posts, so ask for more and filter harder.
+  results_per_query: 10
+  max_age_days: 45
   platforms:
     - name: LinkedIn
       site: linkedin.com/posts
+    - name: LinkedIn
+      site: linkedin.com/pulse
     - name: X
       site: x.com
+  # Search the customer's language, not the vendor's.
+  #
+  # The first widened run returned 30 posts of which 19 were vendor marketing —
+  # AI-answering-service companies recycling the same "$126,000 in missed calls"
+  # stat at each other. Those terms find competitors, not customers, and
+  # commenting on a competitor's lead-gen post reads as a vendor spat.
+  # Business owners describing the problem use plain, first-person phrasing.
   topics:
-    - "missed calls costing local businesses"
-    - "speed to lead follow up"
-    - "AI employee for small business"
-    - "AI agents local business revenue"
-    - "online reviews local business"
-    - "text messaging customers business"
+    - "I keep missing customer calls"
+    - "cant answer the phone while working"
+    - "how do you handle calls when busy"
+    - "should I hire a receptionist small business"
+    - "losing customers because nobody answered"
+    - "leads going cold before I call back"
+    - "how do you follow up with leads"
+    - "asking customers for google reviews"
+    - "how do you get more reviews"
+    - "texting customers instead of calling"
+    - "running a service business solo"
+    - "HVAC business slow season leads"
+    - "contractor scheduling nightmare"
+    - "dealership internet leads follow up"
+
+# Reddit, through the official Data API — not the RSS feeds.
+#
+# reddit.com/robots.txt is `Disallow: /` for every agent, so the public
+# search.rss endpoints are off limits even though they return data. The
+# sanctioned route is an OAuth app credential (REDDIT_CLIENT_ID /
+# REDDIT_CLIENT_SECRET), which is an API key rather than anyone's account login.
+# Free for non-commercial use. Until those are set the channel reports itself
+# unconfigured and the rest of the pipeline runs unchanged.
+#
+# This is the richest source available for this market: owners describing the
+# problem in their own words, at length, while actively asking for help.
+reddit_discovery:
+  enabled: true
+  results_per_query: 10
+  max_age_days: 45
+  subreddits:
+    - smallbusiness
+    - Entrepreneur
+    - HVAC
+    - plumbing
+    - AutoDetailing
+    - Contractors
+  queries:
+    - "missed calls"
+    - "answering service"
+    - "follow up leads"
+    - "booking appointments software"
+    - "customer reviews"
 
 # Never fetched programmatically, regardless of the allowlist.
 # LinkedIn content enters the system only through the manual Voice Library form

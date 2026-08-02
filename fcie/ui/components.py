@@ -93,7 +93,18 @@ BASE_CSS = """
      fallback colour overridden by the fill. Inside @supports, the transparent
      fill only ever applies where the clipping that makes it legible also
      works; everywhere else the solid teal below is what renders. */
-  .fcie-ombre {color: #4E6B70; display: inline-block;}
+  /* The padding is load-bearing, not spacing. `background-clip: text` paints
+     the gradient only inside the element's background box, and on an
+     inline-block that box is the line box — which at these tight heading
+     line-heights sits *inside* the glyph ink. Measured on the hero: the ink
+     ran 4px above and 2.5px below the box, so the ascender of "t" and the
+     descender of "y" were left unpainted and read as clipped. The padding
+     grows the paint box past the ink; the matching negative margins keep the
+     layout exactly where it was. Em units so it holds at any size. */
+  .fcie-ombre {
+    color: #4E6B70; display: inline-block;
+    padding: 0.16em 0 0.20em; margin: -0.16em 0 -0.20em;
+  }
 
   @supports ((-webkit-background-clip: text) or (background-clip: text)) {
     .fcie-ombre {

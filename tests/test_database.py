@@ -1471,6 +1471,52 @@ class TestTextContrast:
                 f"below the {floor}:1 large-text floor"
             )
 
+    @staticmethod
+    def _stylesheet() -> str:
+        """BASE_CSS with its /* comments */ removed.
+
+        Three tests in this class have now failed on the prose explaining the
+        thing they check, not on the thing itself. Most recently a comment
+        containing "background-clip: text" sat between an earlier comment's
+        "@supports" and the real rule, so the guard regex spanned both and
+        matched a block that was never CSS. Scan the rules.
+        """
+        import pathlib
+        import re
+
+        source = pathlib.Path("fcie/ui/components.py").read_text(encoding="utf-8")
+        start = source.index("BASE_CSS = ")
+        return re.sub(r"/\*.*?\*/", "", source[start:], flags=re.S)
+
+    def test_the_ombre_reserves_room_for_ascenders_and_descenders(self):
+        """`background-clip: text` paints only inside the background box.
+
+        On an inline-block that box is the line box, and at heading
+        line-heights it sits inside the glyph ink — measured on the hero, the
+        ink ran 4px above and 2.5px below it, so the ascender of "t" and the
+        descender of "y" were never painted and read as clipped letters. The
+        padding grows the paint box; the negative margins keep the layout put.
+        Both must be present and must match, or fixing the clipping introduces
+        a layout shift instead.
+        """
+        import pathlib
+        import re
+
+        css = self._stylesheet()
+        block = re.search(r"\.fcie-ombre\s*\{([^}]*)\}", css)
+        assert block, ".fcie-ombre base rule not found"
+        body = block.group(1)
+
+        padding = re.search(r"padding:\s*([\d.]+)em\s+0\s+([\d.]+)em", body)
+        margin = re.search(r"margin:\s*-([\d.]+)em\s+0\s+-([\d.]+)em", body)
+        assert padding, "the ombre needs vertical padding so descenders get painted"
+        assert margin, "the padding needs matching negative margins, or layout shifts"
+        assert padding.groups() == margin.groups(), (
+            f"padding {padding.groups()} and negative margin {margin.groups()} "
+            "must match exactly"
+        )
+        assert float(padding.group(2)) > 0, "descenders need bottom padding"
+
     def test_the_ombre_stays_legible_without_background_clip(self):
         """Gradient text must survive a renderer that cannot clip it.
 
@@ -1483,7 +1529,7 @@ class TestTextContrast:
         import pathlib
         import re
 
-        css = pathlib.Path("fcie/ui/components.py").read_text(encoding="utf-8")
+        css = self._stylesheet()
         base = re.search(r"\.fcie-ombre\s*\{([^}]*)\}", css)
         assert base, ".fcie-ombre base rule not found"
         assert re.search(r"\bcolor:\s*#[0-9A-Fa-f]{6}", base.group(1)), (

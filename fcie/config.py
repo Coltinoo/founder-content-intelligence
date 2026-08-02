@@ -260,6 +260,11 @@ class AppConfig:
         return {d.lower().lstrip(".") for d in self.sources.get("first_party_domains", [])}
 
     @property
+    def social_discovery(self) -> dict[str, Any]:
+        """Public-social discovery settings. See the note in config/sources.yaml."""
+        return self.sources.get("social_discovery", {}) or {}
+
+    @property
     def podium_sections(self) -> list[dict[str, Any]]:
         return self.sources.get("podium_sections", [])
 

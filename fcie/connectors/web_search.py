@@ -53,6 +53,20 @@ class WebSearchConnector(BaseConnector):
         self._own_fetcher = fetcher is None
         self.provider = self.creds.search_provider
 
+    def _provider_runner(self):
+        """The search function for the configured provider, or None.
+
+        Factored out so the social connector can reuse the provider plumbing
+        without reimplementing five APIs or subclassing this one.
+        """
+        return {
+            "tavily": self._search_tavily,
+            "brave": self._search_brave,
+            "bing": self._search_bing,
+            "google_cse": self._search_google,
+            "openai_web_search": self._search_openai,
+        }.get(self.provider)
+
     def discover(self) -> ConnectorResult:
         if not self.provider:
             return self.not_configured(SETUP_MESSAGE)
@@ -64,13 +78,7 @@ class WebSearchConnector(BaseConnector):
         blocked = self.cfg.blocked_domains
         seen: set[str] = set()
 
-        runner = {
-            "tavily": self._search_tavily,
-            "brave": self._search_brave,
-            "bing": self._search_bing,
-            "google_cse": self._search_google,
-            "openai_web_search": self._search_openai,
-        }[self.provider]
+        runner = self._provider_runner()
 
         for entry in self.queries:
             query = entry.get("query")

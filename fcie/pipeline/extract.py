@@ -16,6 +16,11 @@ log = logging.getLogger(__name__)
 
 EXTRACTABLE_STATUSES = {"fetched", "extracted", "needs_review", "summary_only"}
 
+# Minimum body length worth analysing. See the note at the call site: an article
+# under 25 words is a failed fetch, but a social post is complete at that length.
+MIN_WORDS = 25
+MIN_WORDS_SOCIAL = 12
+
 
 @dataclass
 class ExtractReport:
@@ -89,9 +94,18 @@ def run_extraction(
     emit(f"Extracting {len(payloads)} source(s) using the {report.backend} backend.")
 
     for index, payload in enumerate(payloads, start=1):
-        if not payload["text"] or len(payload["text"].split()) < 25:
+        # 25 words is the right floor for an article: below it, the fetch or the
+        # parse failed and there is nothing honest to extract. A social post is
+        # not a truncated article — it is a complete short statement, and the
+        # search snippet is all that will ever exist for it, so the same floor
+        # threw away most of the channel.
+        floor = MIN_WORDS_SOCIAL if payload["source_type"] == "social_public" else MIN_WORDS
+        if not payload["text"] or len(payload["text"].split()) < floor:
             report.skipped += 1
-            _mark_unextractable(payload["id"], "Body text too short to analyse.")
+            _mark_unextractable(
+                payload["id"],
+                f"Body text too short to analyse (under {floor} words).",
+            )
             continue
 
         report.processed += 1

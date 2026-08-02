@@ -51,13 +51,23 @@ class EngagementReport:
 _NEVER_ENGAGE_DOMAINS = {
     "podium.com", "job-boards.greenhouse.io", "boards.greenhouse.io",
     "lever.co", "workday.com", "myworkdayjobs.com", "indeed.com",
-    "glassdoor.com", "ziprecruiter.com", "linkedin.com",
+    "glassdoor.com", "ziprecruiter.com",
 }
 _NEVER_ENGAGE_PATH_MARKERS = (
     "/jobs/", "/job/", "/careers", "/pricing", "/legal", "/privacy", "/terms",
     "/login", "/signup", "/demo", "/product/", "/solutions/", "/integrations",
     "/press-kit", "/newsroom",
+    # Social profile and company pages are destinations, not discussions.
+    "/company/", "/school/", "/showcase/",
 )
+
+# Social platforms are the exception to the domain rule above. linkedin.com used
+# to sit in that set, described as a company/job-board domain — true when the
+# only LinkedIn URLs in the corpus were company pages and job ads, and wrong now
+# that the social channel surfaces public posts. A post is the single most likely
+# thing worth a reply, so the test is the URL shape rather than the host.
+_SOCIAL_HOSTS = ("linkedin.com", "x.com", "twitter.com")
+_SOCIAL_CONVERSATION_MARKERS = ("/posts/", "/pulse/", "/status/", "/feed/update/")
 # Minimum relevance for a conversation to be worth a founder's limited attention.
 _MIN_ENGAGEMENT_RELEVANCE = 6.0
 
@@ -70,6 +80,12 @@ def _not_an_engagement_target(source: Source, signal: ExtractedSignal) -> str | 
     for blocked in _NEVER_ENGAGE_DOMAINS:
         if domain == blocked or domain.endswith("." + blocked):
             return f"{blocked} is a company/job-board domain, not a conversation"
+
+    # On a social platform, only an actual post or article is a conversation.
+    # A profile or a company page is somewhere to go, not something to reply to.
+    if any(domain == h or domain.endswith("." + h) for h in _SOCIAL_HOSTS):
+        if not any(marker in url for marker in _SOCIAL_CONVERSATION_MARKERS):
+            return "social profile or landing page rather than a post"
     if domain.endswith(".podium.com"):
         return "Podium's own property"
     if any(marker in url for marker in _NEVER_ENGAGE_PATH_MARKERS):
@@ -106,8 +122,18 @@ def build_watchlist(*, limit: int = 6, lookback_days: int | None = None,
             select(Source, ExtractedSignal)
             .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
             .where(ExtractedSignal.podium_relevance >= 4.0)
-            .order_by(ExtractedSignal.opportunity_score.desc())
-            .limit(limit * 4)
+            # Relevance first, not opportunity_score. The pre-filter used to
+            # take the top `limit * 4` rows by opportunity_score, which is
+            # dominated by long articles — a social post is a search snippet, so
+            # it scores low on evidence strength and never entered the pool at
+            # all. Engagement is about whether a conversation is worth joining,
+            # which is relevance, not article quality. The pool is also much
+            # wider now; `_not_an_engagement_target` and the relevance bar below
+            # do the real filtering, and this only has to not exclude things
+            # before they are considered.
+            .order_by(ExtractedSignal.podium_relevance.desc(),
+                      ExtractedSignal.opportunity_score.desc())
+            .limit(max(limit * 30, 120))
         ).all()
 
         candidates = []

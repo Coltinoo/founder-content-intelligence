@@ -17,6 +17,7 @@ from sqlalchemy import select
 from ..config import load_config
 from ..connectors.base import ConnectorResult, DiscoveredItem
 from ..connectors.podium_site import PodiumSiteConnector
+from ..connectors.social import SocialDiscoveryConnector
 from ..connectors.rss import RSSConnector
 from ..connectors.web_search import WebSearchConnector
 from ..connectors.youtube import YouTubeConnector
@@ -102,6 +103,7 @@ def run_ingestion(
         connectors.append(RSSConnector(fetcher=fetcher))
     if include_search:
         connectors.append(WebSearchConnector(fetcher=fetcher))
+        connectors.append(SocialDiscoveryConnector(fetcher=fetcher))
     if include_youtube:
         connectors.append(YouTubeConnector(fetcher=fetcher))
 

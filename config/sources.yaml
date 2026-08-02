@@ -27,8 +27,37 @@ first_party_domains:
   # labelled.
   - job-boards.greenhouse.io
 
+# Public social discussion, found through the search index — never by crawling.
+#
+# These platforms stay in `blocked_domains` below and are never fetched, logged
+# into, or contacted. This connector asks the same lawful search API used
+# elsewhere for publicly indexed posts and keeps only what the index already
+# publishes: title, snippet, URL, date. Items are emitted with
+# `needs_fetch: false`, so no request is ever made to these hosts.
+#
+# It buys reach, not depth: snippets rather than full posts, no comment threads,
+# no reactions, and no coverage of anything search has not indexed. Anything
+# richer than this needs a human to paste it, or an official platform API.
+social_discovery:
+  enabled: true
+  results_per_query: 6
+  platforms:
+    - name: LinkedIn
+      site: linkedin.com/posts
+    - name: X
+      site: x.com
+  topics:
+    - "missed calls costing local businesses"
+    - "speed to lead follow up"
+    - "AI employee for small business"
+    - "AI agents local business revenue"
+    - "online reviews local business"
+    - "text messaging customers business"
+
 # Never fetched programmatically, regardless of the allowlist.
-# LinkedIn content enters the system only through the manual Voice Library form.
+# LinkedIn content enters the system only through the manual Voice Library form
+# or, for public posts, as search-index metadata via `social_discovery` above —
+# which never contacts these hosts.
 blocked_domains:
   - linkedin.com
   - www.linkedin.com

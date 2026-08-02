@@ -20,6 +20,7 @@ from fcie.queries import (
     featured_opportunity_id,
     opportunities_list,
     opportunity_detail,
+    watchlist_items,
 )
 from fcie.ui.components import (
     empty_state,
@@ -30,6 +31,7 @@ from fcie.ui.components import (
     sidebar_status,
 )
 from fcie.utils.format import count_label
+
 page_setup("Daily Brief", "📄")
 init_db()
 sidebar_status()
@@ -83,6 +85,45 @@ if update["warnings"]:
                      f"before repeating"):
         for warning in update["warnings"]:
             st.markdown(f"- {warning}")
+
+# ── conversations worth a reply ─────────────────────────────────────────────
+# Public posts found through the search index. The platforms are never crawled
+# or logged into, and nothing here is ever acted on automatically.
+watchlist = watchlist_items(statuses=["unreviewed"])
+if watchlist:
+    st.markdown("## Worth replying to")
+    st.markdown(
+        "<div class='fcie-hero-sub'>Public conversations a human might want to "
+        "join. The system surfaces them and stops — it never comments, likes, "
+        "reposts, follows or messages.</div>",
+        unsafe_allow_html=True,
+    )
+    for item in watchlist[:5]:
+        url = item.get("url") or ""
+        platform = ("LinkedIn" if "linkedin.com" in url
+                    else "X" if "x.com" in url else None)
+        with st.container(border=True):
+            who = item["person_or_company"]
+            st.markdown(
+                f"**{who}**"
+                + (f" · {platform}" if platform else "")
+                + (f" · {item['topic']}" if item.get("topic") else "")
+            )
+            if item.get("recent_signal"):
+                st.markdown(
+                    f"<div class='fcie-evidence'>{item['recent_signal']}</div>",
+                    unsafe_allow_html=True,
+                )
+            if item.get("suggested_response_angle"):
+                st.markdown(f"**An angle worth taking.** {item['suggested_response_angle']}")
+            if url:
+                st.markdown(f"[Open the original post]({url})")
+            if platform:
+                st.caption(
+                    f"Found through public web search. {platform} was never crawled, "
+                    f"logged into, or contacted — only what the search index already "
+                    f"publishes is stored."
+                )
 
 st.divider()
 

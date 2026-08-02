@@ -14,7 +14,7 @@ It ingests genuine public web content — Podium's own pages, ~40 verified RSS f
 
 ```
 Public sites · RSS · search queries · YouTube · manually approved sources
-        ↓  source discovery
+        ↓  source discovery          ← the agent chooses its own queries
         ↓  polite crawling + article extraction   (robots.txt, rate limits, identified UA)
         ↓  cleaning, normalisation, 4-layer deduplication, metadata
         ↓  AI structured extraction               (facts, claims, quotes, problems, themes)
@@ -23,6 +23,8 @@ Public sites · RSS · search queries · YouTube · manually approved sources
         ↓  founder-content briefs, hooks, drafts, engagement suggestions
         ↓  HUMAN REVIEW AND APPROVAL              ← nothing leaves without this
 ```
+
+A second entry point takes the raw material a founder generates in a day — a call, an interview, a podcast — and returns structured notes plus post drafts, with every quote checked word-for-word against the transcript. It runs in session and stores nothing, so it is safe to expose in a public demo (`fcie/pipeline/meetings.py`).
 
 It does not summarise articles. For each cluster of signals it answers: *why does this matter to Podium, why could this founder credibly speak to it, what business problem does it reveal, is this new or repeated, what evidence supports it, what angle exists, what must be verified, and what format fits.*
 
@@ -57,7 +59,7 @@ So the anti-hallucination guarantee is enforced **in code, not just in the promp
 - Anything that fails is **discarded**, and the discard is recorded in `verification_notes`.
 - A hallucinating model therefore cannot get a fabricated quote into the system — the worst it can do is produce an empty evidence list, which lowers the score.
 - Brief supporting points with no valid source id **or** no matching stored passage are dropped, not softened (`opportunities.py::LLMBriefBuilder.build`).
-- The UI renders facts (blue rule) and AI interpretation (amber rule) with different visual treatment, and every inference field is prefixed `[Inference]`.
+- The UI renders facts (teal rule) and AI interpretation (gold rule) with different visual treatment, and every inference field is prefixed `[Inference]`.
 - Drafts are audited sentence by sentence; the `evidence_score` is *computed* as supported ÷ factual sentences, not estimated.
 
 Two interchangeable analysis backends sit behind one interface:
@@ -122,9 +124,11 @@ No secret is ever read from a YAML file or committed.
 ```
 founder-content-intelligence/
 ├── streamlit_app.py              # Executive Dashboard (entry point)
-├── pages/                        # 1 Daily Brief · 2 Source Library · 3 Trend Radar
-│                                 # 4 Content Pipeline · 5 Content Brief · 6 Watchlist
-│                                 # 7 Voice Library · 8 Settings
+├── pages/                        # 1 Daily Brief · 2 Meeting to Content
+│                                 # 3 Source Library
+├── _pages_advanced/              # Trend Radar, Content Pipeline, Content Brief,
+│                                 # Watchlist, Voice Library, Settings — complete and
+│                                 # tested, kept out of pages/ so the nav stays at four
 ├── fcie/
 │   ├── config.py                 # layered YAML + env config, integration status
 │   ├── db.py                     # SQLite ⇄ Supabase abstraction
@@ -347,14 +351,19 @@ These are the honest edges of the build, several discovered by actually running 
 
 See [`docs/DEMO.md`](docs/DEMO.md) for the full two-minute script, or:
 
-1. **Executive Dashboard** → coverage counters, highest-ranking signals, rising themes, integration status.
-2. **Run discovery** → watch the live log: discovery, robots-respecting fetches, deduplication, extraction.
-3. **Trend Radar** → open a rising theme → every supporting source with verbatim evidence.
-4. **Content Pipeline** → generate briefs → **Content Brief Detail**.
-5. In the brief: score breakdown, evidence passages with live source links, verification checklist.
-6. **Drafts** → generate a LinkedIn post → evidence score, unsupported-sentence flags, verification list.
-7. **Approve / request changes / reject** — and note that nothing is published.
-8. **Voice Library** → add a public example → see the guide update, and see unconfirmed assumptions stay unconfirmed.
+1. **Dashboard** → *How it works* in four steps, then what it found, then the one
+   idea to write today.
+2. Scroll to **The agent, and what it did** → 550 candidates considered, 60 kept,
+   79 duplicates merged, 49 refused on policy; where it looked, and the twelve
+   queries it chose to run. Read from the run log, not asserted in prose.
+3. **Daily Brief** → what arrived since the last run, then the strongest thing to
+   publish, its draft posts, and the exact source quote behind every point.
+4. Note the honesty: our own pages are labelled and excluded from corroboration,
+   and a draft scoring 6/100 says so rather than hiding it.
+5. **Meeting to Content** → paste any transcript (a synthetic sample is loaded)
+   → notes, decisions, action items, verbatim-checked quotes, and post drafts.
+   Nothing is stored, which is why it is live in a read-only demo.
+6. **Source Library** → every page, who wrote it, and the query that found it.
 
 ---
 

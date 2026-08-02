@@ -284,6 +284,14 @@ python scripts/run_discovery.py --force-heuristic --no-search
 3. Set `FCIE_DATABASE_URL` to Supabase — the container filesystem is ephemeral, so SQLite would be lost on restart.
 4. Schedule ingestion with the included GitHub Action; the app reads the shared database.
 
+> **Before showing it to anyone, open the app first.** Community Cloud puts an
+> app to sleep after a stretch with no traffic, and the next visitor gets a
+> *"Zzzz — this app has gone to sleep"* screen with a wake button, then waits a
+> minute or two for the cold start. Nothing is lost, and the data is safe in
+> Supabase, but it is not what you want a first-time visitor to meet. Loading
+> the URL a few minutes ahead is enough. The scheduled GitHub Action writes to
+> Supabase directly and does not touch the web app, so it will not keep it awake.
+
 **Render / Railway**
 ```
 Build:  pip install -r requirements.txt

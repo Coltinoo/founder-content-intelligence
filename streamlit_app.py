@@ -11,6 +11,8 @@ import streamlit as st
 from fcie.config import load_config
 from fcie.db import init_db
 from fcie.queries import (
+    agent_activity,
+    discovery_queries,
     featured_opportunity_id,
     opportunity_detail,
     dashboard_counters,
@@ -22,6 +24,7 @@ from fcie.queries import (
 from fcie.ui.components import (
     card,
     chip,
+    chips,
     empty_state,
     hero,
     how_it_works,
@@ -327,46 +330,115 @@ st.divider()
 # ── Operations: everything an operator needs, nothing a reader does ─────────
 # Deliberately last. A first-time visitor should meet the findings before the
 # machinery; previously the page opened with three configuration blocks.
-st.markdown("## Run & diagnostics")
-run_pipeline_widget()
+# ── the agent: what it did, on its own, and what it refused ─────────────────
+# This is the part the pipeline diagram only claims. Read straight from the run
+# log so the page cannot drift out of step with what actually happened.
+st.markdown("## The agent, and what it did")
+st.markdown(
+    "<div class='fcie-hero-sub'>This runs on a schedule with nobody watching — "
+    "<b>06:00 UTC every weekday</b>, via a GitHub Action. It decides what to search "
+    "for, reads what it finds, and refuses what it should not take.</div>",
+    unsafe_allow_html=True,
+)
 
-ops_left, ops_right = st.columns(2)
+activity = agent_activity()
+if not activity:
+    st.caption("No runs recorded yet.")
+else:
+    trigger = {"cron": "on schedule", "cli": "from the command line",
+               "ui": "from this dashboard"}.get(activity["trigger"], activity["trigger"])
+    took = (f" and took {activity['duration_seconds'] / 60:.0f} min"
+            if activity.get("duration_seconds") else "")
+    st.markdown(
+        f"<div class='fcie-hero-sub'>Last run was <b>{relative_time(activity['started_at'])}</b>, "
+        f"started {trigger}{took}.</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
 
-with ops_left:
-    with st.expander("Collection health"):
-        rows = []
-        if counters["needs_review"]:
-            rows.append(f"- {count_label(counters['needs_review'], 'source')} need review "
-                        "(too little body text to analyse)")
-        if counters["policy_skipped"]:
-            rows.append(
-                f"- {counters['policy_skipped']} skipped by crawl policy — robots.txt, a "
-                "paywall, or an excluded platform. Nothing was bypassed."
-            )
-        last_run = counters.get("last_run")
-        if last_run:
-            rows.append(
-                f"- Last run {relative_time(last_run['started_at'])}: "
-                f"{last_run['stored']} stored, {last_run['duplicates']} duplicates merged, "
-                f"{len(last_run['errors'])} errors"
-            )
-        st.markdown("\n".join(rows) if rows else "Nothing to report.")
+    a1, a2, a3, a4 = st.columns(4)
+    a1.metric("Candidates considered", activity["candidates"],
+              help="Every article, page and video the agent surfaced across all of "
+                   "its sources before deciding what was worth keeping.")
+    a2.metric("Kept", activity["stored"],
+              help="New, relevant, and readable. Everything else was rejected for a "
+                   "recorded reason rather than silently dropped.")
+    a3.metric("Duplicates merged", activity["duplicates"],
+              help="The same story reached the agent by several routes. It matched "
+                   "them on canonical URL, content hash, title and phrasing, and "
+                   "kept one — recording the other routes against it.")
+    a4.metric("Refused on policy", activity["skipped_policy"],
+              help="robots.txt disallowed it, it sat behind a paywall or login, or "
+                   "the platform is excluded. Nothing was bypassed.")
+
+    st.markdown("#### Where it looked")
+    for connector in activity["connectors"]:
+        found = connector["candidates"]
+        detail = count_label(found, "candidate")
+        if connector["requests"]:
+            detail += f" from {count_label(connector['requests'], 'request')}"
+        # "live" on a connector that returned nothing and reported itself
+        # unconfigured is the app flattering itself. Say which it is.
+        if not connector["ok"]:
+            state, tone = "failed", "bad"
+        elif found:
+            state, tone = "live", "good"
+        elif connector["note"]:
+            state, tone = "not configured", "warn"
+        else:
+            state, tone = "nothing new", ""
+        card(title=connector["name"], meta=detail,
+             body=connector["note"][:200] if connector["note"] else "",
+             chip_html=chip(state, tone=tone))
+
+    st.markdown("#### What it chose to search for")
+    st.markdown(
+        "<div class='fcie-hero-sub'>Not a fixed feed list — these are the queries "
+        "the agent ran against live web search, with what each returned. This is the "
+        "difference between an agent and a scraper.</div>",
+        unsafe_allow_html=True,
+    )
+    queries = discovery_queries(limit=12)
+    if queries:
+        chips(*[chip(q["query"], str(q["sources"])) for q in queries])
+
+    notes = []
+    if activity["deferred"]:
+        notes.append(
+            f"**{activity['deferred']} deferred** — the publisher's robots.txt asked "
+            f"for a longer delay between requests than the run had budget for, so the "
+            f"agent left them for next time instead of ignoring it."
+        )
+    if activity["needs_review"]:
+        notes.append(
+            f"**{activity['needs_review']} kept but not analysed** — too little body "
+            f"text to extract anything honest from. Stored and listed, not hidden."
+        )
+    if activity["fetch_errors"]:
+        notes.append(f"**{activity['fetch_errors']} failed to fetch** — recorded with "
+                     f"the error against the source.")
+    if notes:
+        with st.expander("What it did with the rest"):
+            for note in notes:
+                st.markdown(f"- {note}")
 
     missing = [r for r in cfg.integration_status() if r["ready"] in ("no", "fallback")]
     if missing:
-        with st.expander(f"{len(missing)} optional integrations not configured"):
-            st.caption("The app runs without them; each is skipped with a reason.")
+        with st.expander(count_label(len(missing), "optional integration") + " not configured"):
+            st.caption("The agent runs without them and says so rather than "
+                       "pretending the coverage is there.")
             for row in missing:
-                st.markdown(f"**{row['integration']}** — {row['status']}  \n{row['detail']}")
+                st.markdown(f"**{row['integration']}** — {row['status']}")
+                st.caption(row["detail"])
 
-with ops_right:
     with st.expander("Recent runs"):
-        runs = recent_runs(6)
-        if not runs:
-            st.caption("No runs recorded yet.")
-        for run in runs:
+        for run in recent_runs(6):
             st.markdown(
                 f"**#{run['id']}** · {run['trigger']} · {relative_time(run['started_at'])} — "
-                f"{run['stored']} stored, {run['signals']} analysed, "
-                f"{run['opportunities']} opportunities, {run['errors']} errors"
+                f"{run['stored']} kept, {run['signals']} analysed, "
+                f"{run['opportunities']} ideas, {run['errors']} errors"
             )
+
+st.divider()
+st.markdown("## Run it yourself")
+run_pipeline_widget()

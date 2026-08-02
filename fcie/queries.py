@@ -14,6 +14,7 @@ import pandas as pd
 from sqlalchemy import func, select
 
 from .db import session_scope
+from .utils.format import humanize_label
 from .models import (
     ContentDraft,
     ContentOpportunity,
@@ -786,3 +787,82 @@ def best_brief_window(minimum: int = 3) -> int:
             if count >= minimum:
                 return hours
     return BRIEF_WINDOWS[-1]
+
+
+# ── the agent's own record of what it did ───────────────────────────────────
+
+CONNECTOR_LABELS = {
+    "web_search": "Web search",
+    "rss": "News feeds",
+    "podium_site": "Podium's own site",
+    "youtube": "YouTube",
+    "manual": "Added by hand",
+}
+
+
+def discovery_queries(limit: int = 12) -> list[dict]:
+    """The search terms the agent actually ran, and what each one returned.
+
+    The most direct evidence that this is an agent rather than a scraper: it
+    decides what to go looking for, and the queries are recorded against the
+    sources they produced.
+    """
+    with session_scope() as session:
+        rows = session.execute(
+            select(Source.search_query, func.count(Source.id))
+            .where(Source.search_query.isnot(None))
+            .group_by(Source.search_query)
+            .order_by(func.count(Source.id).desc())
+        ).all()
+    return [{"query": q, "sources": n} for q, n in rows[:limit] if q]
+
+
+def agent_activity() -> dict | None:
+    """What the last run did, stage by stage, including what it refused.
+
+    Reads the run log rather than describing the pipeline in prose, so the page
+    cannot drift out of step with what the agent actually does.
+    """
+    with session_scope() as session:
+        run = session.execute(
+            select(RunLog).order_by(RunLog.started_at.desc()).limit(1)
+        ).scalar_one_or_none()
+        if run is None:
+            return None
+
+        ingest = dict((run.stages or {}).get("ingest") or {})
+        connectors = []
+        for name, payload in (ingest.get("connectors") or {}).items():
+            if not isinstance(payload, dict):
+                continue
+            connectors.append({
+                "name": CONNECTOR_LABELS.get(name, humanize_label(name)),
+                "candidates": payload.get("items") or 0,
+                "requests": payload.get("requests"),
+                "ok": bool(payload.get("ok")),
+                "note": (payload.get("setup_message") or "").strip(),
+            })
+        connectors.sort(key=lambda c: -c["candidates"])
+
+        duration = None
+        if run.finished_at and run.started_at:
+            duration = (run.finished_at - run.started_at).total_seconds()
+
+        return {
+            "id": run.id,
+            "trigger": run.trigger,
+            "started_at": run.started_at,
+            "duration_seconds": duration,
+            "candidates": ingest.get("discovered") or 0,
+            "stored": ingest.get("stored") or run.sources_fetched or 0,
+            "duplicates": ingest.get("duplicates") or 0,
+            "skipped_policy": ingest.get("skipped_policy") or 0,
+            "deferred": ingest.get("deferred") or 0,
+            "fetch_errors": ingest.get("fetch_errors") or 0,
+            "needs_review": ingest.get("needs_review") or 0,
+            "analysed": run.signals_extracted or 0,
+            "topics": run.themes_updated or 0,
+            "ideas": run.opportunities_created or 0,
+            "errors": list(run.errors or []),
+            "connectors": connectors,
+        }

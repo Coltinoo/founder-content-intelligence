@@ -1,7 +1,8 @@
-"""Daily Brief — what to post today, with the evidence attached.
+"""Daily Brief — the daily update: what changed, and what to publish.
 
-Content the overnight pipeline produced from the public web: the idea, the
-drafts written from it, and the exact source quote behind every claim.
+What the agent found since the last run, then the strongest thing to publish
+because of it — the idea, the drafts written from it, and the exact source
+quote behind every claim.
 
 The meeting agent lives on its own page — see pages/2_Meeting_to_Content.py.
 """
@@ -29,20 +30,64 @@ from fcie.ui.components import (
     sidebar_status,
 )
 from fcie.utils.format import count_label
-
-
-
 page_setup("Daily Brief", "📄")
 init_db()
 sidebar_status()
 header(
     "Daily Brief",
-    "The strongest thing to publish today, the drafts already written from it, "
-    "and the exact quote behind every claim so you can check it before you post.",
+    "What the agent found since you last looked, and the strongest thing to "
+    "publish because of it — with the exact quote behind every claim.",
 )
 
+# ── what changed, before what to do about it ────────────────────────────────
+# This page is the daily update. It used to open on an idea picker, which
+# answers "what should I write" without first answering "what happened".
+window = best_brief_window()
+update = build_daily_brief(lookback_hours=window)
+WINDOW_LABELS = {24: "24 hours", 48: "2 days", 72: "3 days",
+                 168: "week", 720: "30 days"}
+
+st.markdown(f"## Since the last {WINDOW_LABELS.get(window, 'run')}")
+u1, u2, u3, u4 = st.columns(4)
+u1.metric("New pages read", len(update["new_sources"]),
+          help="Public pages the agent found and analysed in this window. It runs "
+               "at 06:00 UTC every weekday without being asked.")
+u2.metric("Topics gaining ground", len(update["rising_themes"]),
+          help="Topics with more coverage this period than last, across more than "
+               "one publisher.")
+u3.metric("Ideas worth writing", len(update["opportunities"]),
+          help="Topics with enough evidence behind them to argue a position.")
+u4.metric("Flagged to verify", len(update["warnings"]),
+          help="Numbers and claims the agent will not vouch for. It surfaces them "
+               "rather than quietly passing them through.")
+
+if update["new_sources"]:
+    with st.expander(f"What arrived — {count_label(len(update['new_sources']), 'page')}",
+                     expanded=False):
+        for source in update["new_sources"]:
+            st.markdown(
+                f"**[{source['title']}]({source['url']})**  \n"
+                f"<span class='fcie-muted'>{source['domain']} · "
+                f"{source['theme'] or 'unclassified'} · scored "
+                f"{source['score']:.0f}/100</span>",
+                unsafe_allow_html=True,
+            )
+            if source.get("problem"):
+                st.caption(f"Problem it describes: {source['problem']}")
+            for passage in source["evidence"]:
+                evidence_block(passage.get("passage", ""), source["id"],
+                               source["url"], source["domain"])
+
+if update["warnings"]:
+    with st.expander(f"⚠️  {count_label(len(update['warnings']), 'thing')} to verify "
+                     f"before repeating"):
+        for warning in update["warnings"]:
+            st.markdown(f"- {warning}")
+
+st.divider()
+
 # ═══════════════════════════════════════════════════════════════════════════
-# 1. Content the overnight pipeline produced
+# What to publish because of it
 # ═══════════════════════════════════════════════════════════════════════════
 opportunities = opportunities_list()
 if not opportunities:
@@ -53,7 +98,7 @@ else:
     featured_id = featured_opportunity_id()
     default_index = ids.index(featured_id) if featured_id in ids else 0
 
-    st.markdown("## Pick an idea")
+    st.markdown("## What to publish")
     selected_id = st.selectbox(
         "Content idea",
         ids,
@@ -161,11 +206,10 @@ else:
             for note in risks:
                 st.markdown(f"- {note}")
 
-    window = best_brief_window()
     st.divider()
     st.download_button(
-        "⬇  Export today's brief as Markdown",
-        data=brief_to_markdown(build_daily_brief(lookback_hours=window)),
+        "⬇  Export this update as Markdown",
+        data=brief_to_markdown(update),
         file_name=f"fcie-daily-brief-"
                   f"{datetime.now(timezone.utc).date().isoformat()}.md",
         mime="text/markdown",

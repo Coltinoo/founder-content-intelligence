@@ -4,7 +4,9 @@ What the agent found since the last run, then the strongest thing to publish
 because of it — the idea, the drafts written from it, and the exact source
 quote behind every claim.
 
-The meeting agent lives on its own page — see pages/2_Meeting_to_Content.py.
+This page ties the channels together. Each has its own page: Social Media
+for public posts, Meeting to Content for transcripts, Source Library for the
+full record of everything read.
 """
 
 from __future__ import annotations
@@ -23,6 +25,8 @@ from fcie.queries import (
     watchlist_items,
 )
 from fcie.ui.components import (
+    card,
+    chip,
     empty_state,
     evidence_block,
     header,
@@ -87,43 +91,35 @@ if update["warnings"]:
             st.markdown(f"- {warning}")
 
 # ── conversations worth a reply ─────────────────────────────────────────────
-# Public posts found through the search index. The platforms are never crawled
-# or logged into, and nothing here is ever acted on automatically.
+# A teaser spanning every channel — this page is the synthesis. The social
+# posts get their own page, with the angle and provenance for each; repeating
+# all of that here would make this page long without making it more useful.
 watchlist = watchlist_items(statuses=["unreviewed"])
 if watchlist:
     st.markdown("## Worth replying to")
     st.markdown(
-        "<div class='fcie-hero-sub'>Public conversations a human might want to "
-        "join. The system surfaces them and stops — it never comments, likes, "
-        "reposts, follows or messages.</div>",
+        "<div class='fcie-hero-sub'>Public conversations where a reply would add "
+        "something. Surfaced only — nothing is ever commented, liked, reposted or "
+        "sent.</div>",
         unsafe_allow_html=True,
     )
-    for item in watchlist[:5]:
+    for item in watchlist[:3]:
         url = item.get("url") or ""
         platform = ("LinkedIn" if "linkedin.com" in url
-                    else "X" if "x.com" in url else None)
-        with st.container(border=True):
-            who = item["person_or_company"]
-            st.markdown(
-                f"**{who}**"
-                + (f" · {platform}" if platform else "")
-                + (f" · {item['topic']}" if item.get("topic") else "")
-            )
-            if item.get("recent_signal"):
-                st.markdown(
-                    f"<div class='fcie-evidence'>{item['recent_signal']}</div>",
-                    unsafe_allow_html=True,
-                )
-            if item.get("suggested_response_angle"):
-                st.markdown(f"**An angle worth taking.** {item['suggested_response_angle']}")
-            if url:
-                st.markdown(f"[Open the original post]({url})")
-            if platform:
-                st.caption(
-                    f"Found through public web search. {platform} was never crawled, "
-                    f"logged into, or contacted — only what the search index already "
-                    f"publishes is stored."
-                )
+                    else "X" if "x.com" in url
+                    else "Reddit" if "reddit.com" in url else None)
+        card(
+            title=item["person_or_company"],
+            meta=(f"{platform} · " if platform else "") + (item.get("topic") or ""),
+            body=(item.get("recent_signal") or "")[:180],
+            url=url or None,
+            chip_html=chip(item["priority"],
+                           tone={"high": "bad", "medium": "warn"}.get(item["priority"], "")),
+        )
+    st.caption(
+        f"{count_label(len(watchlist), 'conversation')} in the queue. "
+        f"Social posts, with the angle for each, are on **Social Media** →"
+    )
 
 st.divider()
 

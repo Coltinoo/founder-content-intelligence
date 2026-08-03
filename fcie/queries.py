@@ -866,3 +866,50 @@ def agent_activity() -> dict | None:
             "errors": list(run.errors or []),
             "connectors": connectors,
         }
+
+
+SOCIAL_PLATFORM_HOSTS = {
+    "linkedin.com": "LinkedIn",
+    "x.com": "X",
+    "twitter.com": "X",
+    "reddit.com": "Reddit",
+}
+
+
+def social_post_stats() -> dict:
+    """How the social channel is actually performing, per platform.
+
+    Reported rather than implied. Most candidates are rejected — vendors
+    marketing at each other, or posts too old to reply to — and a page that
+    showed only the survivors would suggest the channel is healthier than it is.
+    """
+    from .pipeline.engagement import _not_an_engagement_target
+
+    by_platform: dict[str, int] = {}
+    analysed = rejected_vendor = rejected_relevance = 0
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(Source, ExtractedSignal)
+            .join(ExtractedSignal, ExtractedSignal.source_id == Source.id)
+            .where(Source.source_type.in_(["social_public", "reddit"]))
+        ).all()
+        for source, signal in rows:
+            analysed += 1
+            url = (source.canonical_url or "").lower()
+            for host, label in SOCIAL_PLATFORM_HOSTS.items():
+                if host in url:
+                    by_platform[label] = by_platform.get(label, 0) + 1
+                    break
+            reason = _not_an_engagement_target(source, signal) or ""
+            if "vendor" in reason:
+                rejected_vendor += 1
+            elif "relevance" in reason:
+                rejected_relevance += 1
+
+    return {
+        "analysed": analysed,
+        "by_platform": by_platform,
+        "rejected_vendor": rejected_vendor,
+        "rejected_relevance": rejected_relevance,
+    }
